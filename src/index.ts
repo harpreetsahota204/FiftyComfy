@@ -1,34 +1,13 @@
 /**
- * FiftyComfy — DEBUG entry point.
- * Adds visible markers to determine if the bundle is even loading.
+ * FiftyComfy — DEBUG v2 entry point.
+ * 
+ * Registration as Panel type=2 succeeds but component isn't found.
+ * This version logs all available types and tries multiple
+ * registration strategies.
  */
 
 import * as React from "react";
 import * as plugins from "@fiftyone/plugins";
-import * as fooOperators from "@fiftyone/operators";
-
-// ─── Visible debug marker ──────────────────────────────────────────
-// This will tell us if the bundle is loading at all
-(function debugMarker() {
-  try {
-    console.log("[FiftyComfy] Bundle executing...");
-    console.log("[FiftyComfy] plugins module:", plugins);
-    console.log("[FiftyComfy] plugins keys:", Object.keys(plugins || {}));
-    console.log("[FiftyComfy] operators module:", fooOperators);
-    console.log("[FiftyComfy] __fop__:", typeof (globalThis as any).__fop__);
-    console.log("[FiftyComfy] React:", typeof React);
-    
-    // Visible marker in DOM
-    const marker = document.createElement("div");
-    marker.id = "fiftycomfy-debug";
-    marker.style.cssText = "position:fixed;bottom:10px;right:10px;background:#2d6a4f;color:white;padding:8px 16px;border-radius:8px;z-index:99999;font-family:monospace;font-size:12px;pointer-events:none;";
-    marker.textContent = "FiftyComfy JS loaded";
-    document.body.appendChild(marker);
-    setTimeout(() => marker.remove(), 10000);
-  } catch (e) {
-    console.error("[FiftyComfy] Debug marker error:", e);
-  }
-})();
 
 // ─── Component ─────────────────────────────────────────────────────
 function FiftyComfyView() {
@@ -51,30 +30,63 @@ function FiftyComfyView() {
   );
 }
 
-// ─── Register ──────────────────────────────────────────────────────
-try {
-  const registerFn = (plugins as any).registerComponent;
-  console.log("[FiftyComfy] registerComponent:", typeof registerFn);
+// ─── Debug: log all available exports ──────────────────────────────
+console.log("[FiftyComfy] All plugin exports:", Object.keys(plugins || {}));
+console.log("[FiftyComfy] PluginComponentType:", (plugins as any).PluginComponentType);
+console.log("[FiftyComfy] PluginComponentTypes:", (plugins as any).PluginComponentTypes);
+
+// Log every export and its type
+for (const [key, val] of Object.entries(plugins as any)) {
+  console.log(`[FiftyComfy]   ${key}: ${typeof val}${typeof val === 'object' ? ' = ' + JSON.stringify(val) : ''}`);
+}
+
+// ─── Try EVERY possible component type ─────────────────────────────
+const registerFn = (plugins as any).registerComponent;
+
+if (registerFn) {
+  // Get all type enum values
+  const typeEnum = (plugins as any).PluginComponentType || (plugins as any).PluginComponentTypes || {};
+  console.log("[FiftyComfy] Type enum values:", JSON.stringify(typeEnum));
+
+  // Try each type value
+  for (const [typeName, typeValue] of Object.entries(typeEnum)) {
+    try {
+      registerFn({
+        name: "FiftyComfyView",
+        component: FiftyComfyView,
+        type: typeValue,
+        activator: ({ dataset }: any) => !!dataset,
+      });
+      console.log(`[FiftyComfy] ✓ Registered with type ${typeName}=${typeValue}`);
+    } catch (e: any) {
+      console.log(`[FiftyComfy] ✗ Failed with type ${typeName}=${typeValue}: ${e.message}`);
+    }
+  }
   
-  if (registerFn) {
-    const panelType =
-      (plugins as any).PluginComponentType?.Panel ??
-      (plugins as any).PluginComponentTypes?.Panel ??
-      "Panel";
-    
-    console.log("[FiftyComfy] Panel type:", panelType);
-    
+  // Also try with NO type at all
+  try {
     registerFn({
       name: "FiftyComfyView",
       component: FiftyComfyView,
-      type: panelType,
-      activator: ({ dataset }: any) => !!dataset,
     });
-    console.log("[FiftyComfy] ✓ Component registered successfully");
-  } else {
-    console.error("[FiftyComfy] ✗ registerComponent is", registerFn);
-    console.error("[FiftyComfy] Available in plugins:", Object.keys(plugins || {}));
+    console.log("[FiftyComfy] ✓ Registered with NO type");
+  } catch (e: any) {
+    console.log(`[FiftyComfy] ✗ Failed with no type: ${e.message}`);
   }
-} catch (e) {
-  console.error("[FiftyComfy] ✗ Registration error:", e);
+
+  // Also try with string type
+  try {
+    registerFn({
+      name: "FiftyComfyView",
+      component: FiftyComfyView,
+      type: "Panel",
+    });
+    console.log('[FiftyComfy] ✓ Registered with type "Panel"');
+  } catch (e: any) {
+    console.log(`[FiftyComfy] ✗ Failed with string type: ${e.message}`);
+  }
+} else {
+  console.error("[FiftyComfy] registerComponent not found!");
 }
+
+console.log("[FiftyComfy] Done with all registration attempts");
