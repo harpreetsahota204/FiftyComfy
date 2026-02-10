@@ -12,8 +12,10 @@ class SetAppViewHandler(NodeHandler):
     def execute(self, input_view, params, ctx):
         if input_view is None:
             raise ValueError("No view connected to Set App View node")
-        ctx.ops.set_view(input_view)
-        return None
+        # Use ctx.ops.set_view() to update the App's sample grid
+        # This uses the serialized view so it works from operator context
+        ctx.ops.set_view(view=input_view)
+        return input_view
 
 
 class SaveViewHandler(NodeHandler):
@@ -36,7 +38,7 @@ class SaveViewHandler(NodeHandler):
             description=description,
             overwrite=overwrite,
         )
-        return None
+        return input_view
 
 
 # All handlers in this module

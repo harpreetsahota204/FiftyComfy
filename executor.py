@@ -5,8 +5,6 @@ from collections import deque
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_NAMESPACE = "@harpreetsahota/FiftyComfy"
-
 
 class GraphExecutor:
     """Execute a LiteGraph-serialized graph topologically."""
@@ -18,28 +16,28 @@ class GraphExecutor:
         """
         Execute a serialized LiteGraph graph.
 
+        This is a generator that yields ctx.ops/ctx.trigger calls
+        for progress reporting and App updates.
+
         Args:
-            ctx: FiftyOne panel execution context
+            ctx: FiftyOne operator execution context
             graph_data: Serialized LiteGraph JSON with `nodes` and `links`
 
-        Returns:
-            dict with execution status and any results
+        Yields:
+            Progress updates and final result
         """
         nodes = {n["id"]: n for n in graph_data.get("nodes", [])}
         links = graph_data.get("links", [])
 
         if not nodes:
-            return {"status": "error", "error": "Graph has no nodes"}
+            return
 
         # ----- Build adjacency -----
         children = {nid: [] for nid in nodes}
         parents = {nid: [] for nid in nodes}
 
-        # LiteGraph link format: [link_id, origin_id, origin_slot, target_id, target_slot, type]
-        link_map = {}  # link_id -> (origin_id, origin_slot)
         for link in links:
             link_id, origin_id, origin_slot, target_id, target_slot, link_type = link
-            link_map[link_id] = (origin_id, origin_slot)
             if origin_id in nodes and target_id in nodes:
                 children[origin_id].append(target_id)
                 parents[target_id].append(origin_id)
@@ -61,113 +59,80 @@ class GraphExecutor:
                         queue.append(child)
 
         if len(execution_order) != len(nodes):
-            return {"status": "error", "error": "Graph contains a cycle"}
+            yield ctx.ops.notify("Graph contains a cycle!", variant="error")
+            return
 
         # ----- Execute nodes in topological order -----
-        results = {}  # node_id -> output value
-        failed_nodes = set()  # nodes that failed or were skipped
-        execution_results = {}  # node_id -> result summary
+        results = {}
+        failed_nodes = set()
+        total = len(execution_order)
 
-        for node_id in execution_order:
+        for idx, node_id in enumerate(execution_order):
             node = nodes[node_id]
             node_type = node.get("type", "")
             properties = node.get("properties", {})
 
-            # Also extract widget values if present
+            # Merge widgets_values into properties
             if "widgets_values" in node:
                 properties = self._merge_widget_values(node, properties)
 
-            # Check if any parent failed — skip this node
+            # Skip if parent failed
             parent_failed = any(p in failed_nodes for p in parents[node_id])
             if parent_failed:
                 failed_nodes.add(node_id)
-                self._send_status(ctx, node_id, "skipped")
                 continue
 
-            # Send "running" status
-            self._send_status(ctx, node_id, "running")
+            # Report progress
+            node_title = node_type.split("/")[-1] if "/" in node_type else node_type
+            yield ctx.ops.set_progress(
+                progress=(idx / total),
+                label=f"Running: {node_title} ({idx + 1}/{total})",
+            )
 
             try:
-                # Resolve input: pick the first connected parent's output
+                # Resolve input from parent
                 input_view = None
                 if parents[node_id]:
-                    # Use the first parent that has a result
                     for parent_id in parents[node_id]:
                         if parent_id in results and results[parent_id] is not None:
                             input_view = results[parent_id]
                             break
 
-                # Look up handler and execute
+                # Look up handler
                 handler = self.registry.get_handler(node_type)
                 if handler is None:
-                    raise ValueError(f"No handler registered for node type: {node_type}")
+                    raise ValueError(f"No handler for: {node_type}")
 
                 output = handler.execute(input_view, properties, ctx)
                 results[node_id] = output
 
-                # For aggregation/display nodes, send result back
-                display_result = None
-                if handler.category == "aggregations":
-                    display_result = output
-
-                self._send_status(ctx, node_id, "complete", result=display_result)
-                execution_results[node_id] = {
-                    "status": "complete",
-                    "type": node_type,
-                }
+                logger.info(f"Node {node_id} ({node_type}) complete")
 
             except Exception as e:
                 logger.exception(f"Node {node_id} ({node_type}) failed: {e}")
                 failed_nodes.add(node_id)
-                self._send_status(ctx, node_id, "error", error=str(e))
-                execution_results[node_id] = {
-                    "status": "error",
-                    "type": node_type,
-                    "error": str(e),
-                }
-                # Continue executing independent branches — don't break
+                yield ctx.ops.notify(
+                    f"Node '{node_title}' failed: {e}",
+                    variant="error",
+                )
 
-        # Send final execution summary
-        ctx.trigger(
-            f"{PLUGIN_NAMESPACE}/execution_complete",
-            {
-                "status": "complete",
-                "total_nodes": len(nodes),
-                "completed": sum(
-                    1
-                    for r in execution_results.values()
-                    if r["status"] == "complete"
-                ),
-                "failed": len(failed_nodes),
-            },
-        )
+        # Final progress
+        completed = total - len(failed_nodes)
+        if failed_nodes:
+            yield ctx.ops.notify(
+                f"Workflow done: {completed}/{total} nodes succeeded, {len(failed_nodes)} failed",
+                variant="warning",
+            )
+        else:
+            yield ctx.ops.notify(
+                f"Workflow complete! {completed} nodes executed.",
+                variant="success",
+            )
 
-        return {
-            "status": "complete",
-            "results": execution_results,
-        }
-
-    def _send_status(self, ctx, node_id, status, result=None, error=None):
-        """Send a per-node status update to the frontend."""
-        payload = {"node_id": node_id, "status": status}
-        if result is not None:
-            payload["result"] = result
-        if error is not None:
-            payload["error"] = error
-
-        try:
-            ctx.trigger(f"{PLUGIN_NAMESPACE}/node_status_update", payload)
-        except Exception:
-            logger.debug(f"Could not send status for node {node_id}")
+        # Reload dataset to reflect any changes
+        yield ctx.ops.reload_dataset()
 
     def _merge_widget_values(self, node, properties):
-        """
-        LiteGraph stores widget values in `widgets_values` array.
-        Merge them into properties based on widget order.
-        We keep existing properties and overlay widget values.
-        """
-        # Properties from the serialized graph take priority;
-        # widgets_values is a fallback for values not in properties
+        """Merge widget values into properties."""
         merged = dict(properties)
-        # We don't know widget names from just the array, so properties wins
         return merged

@@ -43,23 +43,20 @@ class ExecuteGraph(foo.Operator):
             allow_immediate_execution=True,
         )
 
-    def resolve_input(self, ctx):
-        inputs = types.Object()
-        inputs.str("graph_json", label="Serialized graph JSON", required=True)
-        return types.Property(inputs)
-
     def execute(self, ctx):
         graph_json = ctx.params.get("graph_json", "")
         try:
             graph_data = json.loads(graph_json) if isinstance(graph_json, str) else graph_json
         except Exception as e:
-            yield {"status": "error", "error": f"Invalid graph JSON: {e}"}
+            yield ctx.ops.notify(f"Invalid graph JSON: {e}", variant="error")
             return
 
         registry = get_node_registry()
         executor = GraphExecutor(registry)
-        result = executor.execute(ctx, graph_data)
-        yield result
+
+        # Forward all generator yields from the executor
+        for msg in executor.execute(ctx, graph_data):
+            yield msg
 
 
 # ─── Save Graph Operator ────────────────────────────────────────────
@@ -72,12 +69,6 @@ class SaveGraph(foo.Operator):
             label="Save FiftyComfy Workflow",
             unlisted=True,
         )
-
-    def resolve_input(self, ctx):
-        inputs = types.Object()
-        inputs.str("name", label="Workflow name", required=True)
-        inputs.str("graph_json", label="Serialized graph JSON", required=True)
-        return types.Property(inputs)
 
     def execute(self, ctx):
         store = ctx.store(_get_store_key(ctx))
@@ -134,11 +125,6 @@ class LoadGraph(foo.Operator):
             unlisted=True,
         )
 
-    def resolve_input(self, ctx):
-        inputs = types.Object()
-        inputs.str("graph_id", label="Graph ID", required=True)
-        return types.Property(inputs)
-
     def execute(self, ctx):
         store = ctx.store(_get_store_key(ctx))
         graph_id = ctx.params.get("graph_id")
@@ -158,11 +144,6 @@ class DeleteGraph(foo.Operator):
             label="Delete FiftyComfy Workflow",
             unlisted=True,
         )
-
-    def resolve_input(self, ctx):
-        inputs = types.Object()
-        inputs.str("graph_id", label="Graph ID", required=True)
-        return types.Property(inputs)
 
     def execute(self, ctx):
         store = ctx.store(_get_store_key(ctx))
