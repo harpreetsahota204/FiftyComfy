@@ -3,44 +3,223 @@ FiftyComfy — Visual node-based workflow editor for FiftyOne.
 
 A ComfyUI-style canvas for composing dataset curation and analysis
 pipelines without writing code.
+
+Architecture: Pure JS panel (registered via registerComponent in JS)
++ Python operators (for backend computation). No Python Panel class.
 """
 
+import uuid
+import json
+import time
+import logging
+
+import fiftyone as fo
 import fiftyone.operators as foo
+import fiftyone.operators.types as types
 
-from .panel import FiftyComfyPanel
 from .executor import GraphExecutor
+from .nodes import get_node_registry
+
+logger = logging.getLogger(__name__)
+
+STORE_VERSION = "v1"
 
 
-class ExecuteGraphOperator(foo.Operator):
-    """Operator to execute a FiftyComfy graph (triggered by the panel)."""
+def _get_store_key(ctx):
+    dataset_id = str(ctx.dataset._doc.id) if ctx.dataset else "none"
+    return f"fiftycomfy_{dataset_id}_{STORE_VERSION}"
 
+
+# ─── Execute Graph Operator ─────────────────────────────────────────
+
+class ExecuteGraph(foo.Operator):
     @property
     def config(self):
         return foo.OperatorConfig(
             name="execute_graph",
             label="Execute FiftyComfy Graph",
-            description="Execute a visual workflow graph",
             unlisted=True,
             execute_as_generator=True,
             allow_immediate_execution=True,
         )
 
-    def execute(self, ctx):
-        from .nodes import get_node_registry
+    def resolve_input(self, ctx):
+        inputs = types.Object()
+        inputs.str("graph_json", label="Serialized graph JSON", required=True)
+        return types.Property(inputs)
 
-        graph_data = ctx.params.get("graph")
-        if not graph_data:
-            yield {"status": "error", "error": "No graph data"}
+    def execute(self, ctx):
+        graph_json = ctx.params.get("graph_json", "")
+        try:
+            graph_data = json.loads(graph_json) if isinstance(graph_json, str) else graph_json
+        except Exception as e:
+            yield {"status": "error", "error": f"Invalid graph JSON: {e}"}
             return
 
         registry = get_node_registry()
         executor = GraphExecutor(registry)
         result = executor.execute(ctx, graph_data)
-
         yield result
 
 
+# ─── Save Graph Operator ────────────────────────────────────────────
+
+class SaveGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="save_graph",
+            label="Save FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def resolve_input(self, ctx):
+        inputs = types.Object()
+        inputs.str("name", label="Workflow name", required=True)
+        inputs.str("graph_json", label="Serialized graph JSON", required=True)
+        return types.Property(inputs)
+
+    def execute(self, ctx):
+        store = ctx.store(_get_store_key(ctx))
+        name = ctx.params.get("name", "Untitled")
+        graph_json = ctx.params.get("graph_json", "")
+
+        try:
+            graph_data = json.loads(graph_json) if isinstance(graph_json, str) else graph_json
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+        graph_id = str(uuid.uuid4())
+        entry = {
+            "id": graph_id,
+            "name": name,
+            "graph": graph_data,
+            "saved_at": time.time(),
+        }
+
+        store.set(f"graph_{graph_id}", entry)
+
+        index = store.get("graph_index") or []
+        index.append({"id": graph_id, "name": name, "saved_at": entry["saved_at"]})
+        store.set("graph_index", index)
+
+        return {"status": "ok", "graph_id": graph_id}
+
+
+# ─── Load Graphs List Operator ──────────────────────────────────────
+
+class LoadGraphs(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="load_graphs",
+            label="List Saved FiftyComfy Workflows",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        store = ctx.store(_get_store_key(ctx))
+        index = store.get("graph_index") or []
+        return {"graphs": index}
+
+
+# ─── Load Single Graph Operator ─────────────────────────────────────
+
+class LoadGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="load_graph",
+            label="Load FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def resolve_input(self, ctx):
+        inputs = types.Object()
+        inputs.str("graph_id", label="Graph ID", required=True)
+        return types.Property(inputs)
+
+    def execute(self, ctx):
+        store = ctx.store(_get_store_key(ctx))
+        graph_id = ctx.params.get("graph_id")
+        entry = store.get(f"graph_{graph_id}")
+        if not entry:
+            return {"status": "error", "error": f"Graph {graph_id} not found"}
+        return {"status": "ok", "data": entry}
+
+
+# ─── Delete Graph Operator ──────────────────────────────────────────
+
+class DeleteGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="delete_graph",
+            label="Delete FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def resolve_input(self, ctx):
+        inputs = types.Object()
+        inputs.str("graph_id", label="Graph ID", required=True)
+        return types.Property(inputs)
+
+    def execute(self, ctx):
+        store = ctx.store(_get_store_key(ctx))
+        graph_id = ctx.params.get("graph_id")
+        store.delete(f"graph_{graph_id}")
+
+        index = store.get("graph_index") or []
+        index = [g for g in index if g["id"] != graph_id]
+        store.set("graph_index", index)
+
+        return {"status": "ok"}
+
+
+# ─── Get Dataset Info Operator ──────────────────────────────────────
+
+class GetDatasetInfo(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="get_dataset_info",
+            label="Get Dataset Info for FiftyComfy",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        if not ctx.dataset:
+            return {"fields": [], "label_fields": [], "saved_views": [], "tags": []}
+
+        schema = ctx.dataset.get_field_schema()
+        fields = list(schema.keys())
+        label_fields = [k for k, v in schema.items() if hasattr(v, "document_type")]
+
+        try:
+            saved_views = ctx.dataset.list_saved_views()
+        except Exception:
+            saved_views = []
+
+        try:
+            tags = ctx.dataset.distinct("tags")
+        except Exception:
+            tags = []
+
+        return {
+            "fields": fields,
+            "label_fields": label_fields,
+            "saved_views": saved_views,
+            "tags": tags,
+        }
+
+
+# ─── Registration ───────────────────────────────────────────────────
+
 def register(p):
-    """Register all FiftyComfy components with the FiftyOne plugin system."""
-    p.register(FiftyComfyPanel)
-    p.register(ExecuteGraphOperator)
+    """Register all FiftyComfy operators."""
+    p.register(ExecuteGraph)
+    p.register(SaveGraph)
+    p.register(LoadGraphs)
+    p.register(LoadGraph)
+    p.register(DeleteGraph)
+    p.register(GetDatasetInfo)

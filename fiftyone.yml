@@ -9,5 +9,8 @@ fiftyone:
   version: ">=0.25"
 operators:
   - execute_graph
-panels:
-  - fiftycomfy_panel
+  - save_graph
+  - load_graphs
+  - load_graph
+  - delete_graph
+  - get_dataset_info
