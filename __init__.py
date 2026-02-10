@@ -216,7 +216,10 @@ class GetDatasetInfo(foo.Operator):
 # ─── Registration ───────────────────────────────────────────────────
 
 def register(p):
-    """Register all FiftyComfy operators."""
+    """Register all FiftyComfy components."""
+    from .panel import FiftyComfyPanel
+
+    p.register(FiftyComfyPanel)
     p.register(ExecuteGraph)
     p.register(SaveGraph)
     p.register(LoadGraphs)

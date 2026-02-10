@@ -1,10 +1,13 @@
 /**
  * FiftyComfy — Plugin entry point.
  *
- * Registers FiftyComfyView as a standalone JS panel (Pattern A),
- * exactly like the official Hello World example.
- * No Python Panel class — the panel IS this JS component.
- * Python operators handle all backend computation.
+ * Per the official FiftyOne docs "Custom operator view using component plugin":
+ * When a Python panel references a JS component via
+ *   view=types.View(component="FiftyComfyView")
+ * the JS side must register that component with type = Component (3),
+ * NOT Panel (2).
+ *
+ * See: https://docs.voxel51.com/plugins/developing_plugins.html#custom-operator-view-using-component-plugin
  */
 
 import { registerComponent, PluginComponentType } from "@fiftyone/plugins";
@@ -12,18 +15,17 @@ import { registerOperator } from "@fiftyone/operators";
 import FiftyComfyView from "./FiftyComfyView";
 import { NodeStatusUpdateOperator, ExecutionCompleteOperator } from "./operators";
 
-// Register the panel — this creates the panel in the FiftyOne App
+// Register as Component (type 3) — this is what composite_view looks up
 registerComponent({
   name: "FiftyComfyView",
-  label: "FiftyComfy",
   component: FiftyComfyView,
-  type: PluginComponentType.Panel,
-  activator: ({ dataset }: any) => !!dataset,
+  type: PluginComponentType.Component,
+  activator: () => true,
 });
 
-// Register TS operators for receiving Python execution status
+// Register TS operators
 const NS = "@harpreetsahota/FiftyComfy";
 registerOperator(NodeStatusUpdateOperator, NS);
 registerOperator(ExecutionCompleteOperator, NS);
 
-console.log("[FiftyComfy] Panel and operators registered");
+console.log("[FiftyComfy] Component (type=3) and operators registered");

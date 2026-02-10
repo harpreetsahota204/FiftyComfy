@@ -14,3 +14,5 @@ operators:
   - load_graph
   - delete_graph
   - get_dataset_info
+panels:
+  - fiftycomfy_panel
