@@ -1,0 +1,2 @@
+fiftyone>=0.25
+fiftyone-brain
