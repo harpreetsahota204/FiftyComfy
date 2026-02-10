@@ -1,0 +1,15 @@
+name: "@harpreetsahota/FiftyComfy"
+type: plugin
+author: Harpreet Sahota
+version: 0.1.0
+url: https://github.com/harpreetsahota/FiftyComfy
+license: Apache 2.0
+description: "Visual node-based workflow editor for FiftyOne — ComfyUI-style canvas for composing dataset curation and analysis pipelines"
+fiftyone:
+  version: ">=0.25"
+operators:
+  - execute_graph
+  - node_status_update
+  - execution_complete
+panels:
+  - fiftycomfy_panel

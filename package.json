@@ -1,0 +1,32 @@
+{
+  "name": "@harpreetsahota/fiftycomfy",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.umd.js",
+  "fiftyone": {
+    "script": "dist/index.umd.js"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@comfyorg/litegraph": "^0.17.2"
+  },
+  "peerDependencies": {
+    "@fiftyone/components": "*",
+    "@fiftyone/operators": "*",
+    "@fiftyone/plugins": "*",
+    "@fiftyone/state": "*",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "recoil": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}
