@@ -5,7 +5,8 @@
  * Uses the global event bus from operators.ts for execution updates.
  */
 
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import * as React from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { usePanelEvent } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";

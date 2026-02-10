@@ -9,7 +9,5 @@ fiftyone:
   version: ">=0.25"
 operators:
   - execute_graph
-  - node_status_update
-  - execution_complete
 panels:
   - fiftycomfy_panel
