@@ -1,18 +1,15 @@
 /**
  * TypeScript operators for FiftyComfy.
  *
- * These receive status updates from the Python backend via ctx.trigger()
- * and update Recoil state so the LiteGraph canvas reflects execution status.
+ * These are event handlers triggered by the Python backend via ctx.trigger().
+ * They use a simple global event bus (no Recoil) so the React component
+ * can subscribe to updates.
  */
 
-import {
-  Operator,
-  OperatorConfig,
-  registerOperator,
-} from "@fiftyone/operators";
-import { atom, useSetRecoilState } from "recoil";
+import { Operator, OperatorConfig } from "@fiftyone/operators";
 
-/** Per-node status update from Python backend. */
+// ─── Types ─────────────────────────────────────────────────────────
+
 export interface NodeStatusPayload {
   node_id: number;
   status: "running" | "complete" | "error" | "skipped";
@@ -20,7 +17,6 @@ export interface NodeStatusPayload {
   error?: string;
 }
 
-/** Final execution summary from Python backend. */
 export interface ExecutionCompletePayload {
   status: "complete" | "error";
   total_nodes?: number;
@@ -28,24 +24,34 @@ export interface ExecutionCompletePayload {
   failed?: number;
 }
 
-// Recoil atoms for cross-component state
+// ─── Global event bus ──────────────────────────────────────────────
+// Simple pub/sub so the React component can receive updates from
+// operators without needing Recoil as a dependency.
 
-export const nodeStatusesAtom = atom<Record<number, NodeStatusPayload>>({
-  key: "fiftycomfy_nodeStatuses",
-  default: {},
-});
+type Listener = (data: any) => void;
+const listeners: Record<string, Listener[]> = {};
 
-export const executionStateAtom = atom<{
-  running: boolean;
-  lastResult: ExecutionCompletePayload | null;
-}>({
-  key: "fiftycomfy_executionState",
-  default: { running: false, lastResult: null },
-});
+export function onEvent(event: string, fn: Listener) {
+  if (!listeners[event]) listeners[event] = [];
+  listeners[event].push(fn);
+  return () => {
+    listeners[event] = listeners[event].filter((f) => f !== fn);
+  };
+}
 
-// TS operator: receives per-node status updates from Python
+function emit(event: string, data: any) {
+  (listeners[event] || []).forEach((fn) => {
+    try {
+      fn(data);
+    } catch (e) {
+      console.error(`[FiftyComfy] Event listener error (${event}):`, e);
+    }
+  });
+}
 
-class NodeStatusUpdateOperator extends Operator {
+// ─── Node Status Update Operator ───────────────────────────────────
+
+export class NodeStatusUpdateOperator extends Operator {
   get config(): OperatorConfig {
     return new OperatorConfig({
       name: "node_status_update",
@@ -54,23 +60,14 @@ class NodeStatusUpdateOperator extends Operator {
     });
   }
 
-  useHooks() {
-    const setStatuses = useSetRecoilState(nodeStatusesAtom);
-    return { setStatuses };
-  }
-
-  async execute(ctx: { hooks: any; params: NodeStatusPayload }) {
-    const { node_id, status, result, error } = ctx.params;
-    ctx.hooks.setStatuses((prev: Record<number, NodeStatusPayload>) => ({
-      ...prev,
-      [node_id]: { node_id, status, result, error },
-    }));
+  async execute({ params }: any) {
+    emit("node_status", params as NodeStatusPayload);
   }
 }
 
-// TS operator: receives final execution summary from Python
+// ─── Execution Complete Operator ───────────────────────────────────
 
-class ExecutionCompleteOperator extends Operator {
+export class ExecutionCompleteOperator extends Operator {
   get config(): OperatorConfig {
     return new OperatorConfig({
       name: "execution_complete",
@@ -79,24 +76,7 @@ class ExecutionCompleteOperator extends Operator {
     });
   }
 
-  useHooks() {
-    const setExecState = useSetRecoilState(executionStateAtom);
-    return { setExecState };
+  async execute({ params }: any) {
+    emit("execution_complete", params as ExecutionCompletePayload);
   }
-
-  async execute(ctx: { hooks: any; params: ExecutionCompletePayload }) {
-    ctx.hooks.setExecState({
-      running: false,
-      lastResult: ctx.params,
-    });
-  }
-}
-
-// Registration
-
-const PLUGIN_NAMESPACE = "@harpreetsahota/FiftyComfy";
-
-export function registerOperators() {
-  registerOperator(NodeStatusUpdateOperator, PLUGIN_NAMESPACE);
-  registerOperator(ExecutionCompleteOperator, PLUGIN_NAMESPACE);
 }
