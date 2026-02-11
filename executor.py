@@ -1,4 +1,9 @@
-"""Graph topological sort and execution engine for FiftyComfy."""
+"""Graph topological sort and execution engine for FiftyComfy.
+
+This is a generator — it yields ctx.ops/ctx.trigger calls that get
+forwarded through the ExecuteGraph operator's execute() generator.
+Only yielded calls actually take effect in the FiftyOne App.
+"""
 
 import logging
 from collections import deque
@@ -13,19 +18,6 @@ class GraphExecutor:
         self.registry = node_registry
 
     def execute(self, ctx, graph_data):
-        """
-        Execute a serialized LiteGraph graph.
-
-        This is a generator that yields ctx.ops/ctx.trigger calls
-        for progress reporting and App updates.
-
-        Args:
-            ctx: FiftyOne operator execution context
-            graph_data: Serialized LiteGraph JSON with `nodes` and `links`
-
-        Yields:
-            Progress updates and final result
-        """
         nodes = {n["id"]: n for n in graph_data.get("nodes", [])}
         links = graph_data.get("links", [])
 
@@ -62,27 +54,26 @@ class GraphExecutor:
             yield ctx.ops.notify("Graph contains a cycle!", variant="error")
             return
 
-        # ----- Execute nodes in topological order -----
+        # ----- Execute each node -----
         results = {}
         failed_nodes = set()
         total = len(execution_order)
+        final_view = None  # Track the last view for Set App View
 
         for idx, node_id in enumerate(execution_order):
             node = nodes[node_id]
             node_type = node.get("type", "")
             properties = node.get("properties", {})
 
-            # Merge widgets_values into properties
             if "widgets_values" in node:
-                properties = self._merge_widget_values(node, properties)
+                properties = dict(properties)
 
             # Skip if parent failed
-            parent_failed = any(p in failed_nodes for p in parents[node_id])
-            if parent_failed:
+            if any(p in failed_nodes for p in parents[node_id]):
                 failed_nodes.add(node_id)
                 continue
 
-            # Report progress
+            # Progress
             node_title = node_type.split("/")[-1] if "/" in node_type else node_type
             yield ctx.ops.set_progress(
                 progress=(idx / total),
@@ -90,21 +81,23 @@ class GraphExecutor:
             )
 
             try:
-                # Resolve input from parent
+                # Get input view from parent
                 input_view = None
-                if parents[node_id]:
-                    for parent_id in parents[node_id]:
-                        if parent_id in results and results[parent_id] is not None:
-                            input_view = results[parent_id]
-                            break
+                for parent_id in parents.get(node_id, []):
+                    if parent_id in results and results[parent_id] is not None:
+                        input_view = results[parent_id]
+                        break
 
-                # Look up handler
                 handler = self.registry.get_handler(node_type)
                 if handler is None:
                     raise ValueError(f"No handler for: {node_type}")
 
                 output = handler.execute(input_view, properties, ctx)
                 results[node_id] = output
+
+                # If this is a "Set App View" node, remember the view
+                if node_type == "FiftyComfy/Output/Set App View" and output is not None:
+                    final_view = output
 
                 logger.info(f"Node {node_id} ({node_type}) complete")
 
@@ -116,11 +109,16 @@ class GraphExecutor:
                     variant="error",
                 )
 
-        # Final progress
+        # ----- Apply the view to the App (this is the critical step!) -----
+        if final_view is not None:
+            # This yield is what actually updates the Samples panel
+            yield ctx.ops.set_view(view=final_view)
+
+        # Summary
         completed = total - len(failed_nodes)
         if failed_nodes:
             yield ctx.ops.notify(
-                f"Workflow done: {completed}/{total} nodes succeeded, {len(failed_nodes)} failed",
+                f"Workflow done: {completed}/{total} nodes succeeded",
                 variant="warning",
             )
         else:
@@ -129,10 +127,4 @@ class GraphExecutor:
                 variant="success",
             )
 
-        # Reload dataset to reflect any changes
         yield ctx.ops.reload_dataset()
-
-    def _merge_widget_values(self, node, properties):
-        """Merge widget values into properties."""
-        merged = dict(properties)
-        return merged

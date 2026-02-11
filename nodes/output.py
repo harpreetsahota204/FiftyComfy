@@ -1,4 +1,9 @@
-"""Output node handlers — push results back to the FiftyOne App."""
+"""Output node handlers — push results back to the FiftyOne App.
+
+IMPORTANT: These handlers do NOT call ctx.ops directly because
+we're inside a generator operator. Instead, they return special
+marker dicts that the executor detects and yields as ctx.ops calls.
+"""
 
 from . import NodeHandler
 
@@ -12,9 +17,7 @@ class SetAppViewHandler(NodeHandler):
     def execute(self, input_view, params, ctx):
         if input_view is None:
             raise ValueError("No view connected to Set App View node")
-        # Use ctx.ops.set_view() to update the App's sample grid
-        # This uses the serialized view so it works from operator context
-        ctx.ops.set_view(view=input_view)
+        # Return the view — the executor will yield ctx.ops.set_view()
         return input_view
 
 
