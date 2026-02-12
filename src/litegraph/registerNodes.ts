@@ -14,16 +14,20 @@ interface DatasetInfo {
   dataset_name: string;
   fields: string[];
   label_fields: string[];
+  patches_fields: string[];
   saved_views: string[];
   tags: string[];
+  label_classes: Record<string, string[]>;
 }
 
 let _datasetInfo: DatasetInfo = {
   dataset_name: "",
   fields: [],
   label_fields: [],
+  patches_fields: [],
   saved_views: [],
   tags: [],
+  label_classes: {},
 };
 
 /**
@@ -51,12 +55,17 @@ function populateNodeCombos(node: any): void {
         ? _datasetInfo.saved_views
         : ["(no saved views)"];
     }
-    // Label fields: used by Filter Labels, Match Labels, To Patches, Map Labels
+    // Patches fields (Detections, Polylines, Keypoints only)
+    else if (name === "field" && t.includes("To Patches")) {
+      w.options.values = _datasetInfo.patches_fields.length > 0
+        ? _datasetInfo.patches_fields
+        : ["(no patchable fields)"];
+    }
+    // Label fields: Filter Labels, Match Labels, Map Labels
     else if (
       name === "field" && (
         t.includes("Filter Labels") ||
         t.includes("Match Labels") ||
-        t.includes("To Patches") ||
         t.includes("Map Labels")
       )
     ) {
@@ -64,11 +73,22 @@ function populateNodeCombos(node: any): void {
         ? _datasetInfo.label_fields
         : ["(no label fields)"];
     }
-    // General fields: Sort By, Count Values, Distinct, Bounds
+    // General fields: Sort By and any other "field" combo
     else if (name === "field") {
       w.options.values = _datasetInfo.fields.length > 0
         ? _datasetInfo.fields
         : ["(no fields)"];
+    }
+  }
+
+  // For Filter Labels and Match Labels: add a "classes" hint widget
+  // showing available labels once a field is selected
+  if (t.includes("Filter Labels") || t.includes("Match Labels")) {
+    const fieldVal = node.properties?.field || "";
+    const classes = _datasetInfo.label_classes[fieldVal];
+    if (classes && classes.length > 0) {
+      // Store classes on the node so users can see what's available
+      node.properties._available_classes = classes;
     }
   }
 }
@@ -185,12 +205,23 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.addWidget("text", "expression", "F('confidence') > 0.5", (v: string) => { this.properties.expression = v; });
+      this.addWidget("text", "expression", "F('label') == 'car'", (v: string) => { this.properties.expression = v; });
       this.addWidget("toggle", "only_matches", true, (v: boolean) => { this.properties.only_matches = v; });
-      this.properties = { field: "", expression: "F('confidence') > 0.5", only_matches: true };
-      this.size = [320, 130];
+      this.properties = { field: "", expression: "F('label') == 'car'", only_matches: true };
+      this.size = [320, 150];
       this.color = "#2A633A";
       this.bgcolor = "#1E4A2B";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const field = this.properties.field;
+      const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
+      if (classes.length > 0) {
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.textAlign = "left";
+        const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
+        ctx.fillText("classes: " + preview, 8, this.size[1] - 6);
+      }
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Filter Labels", FO_FilterLabels as any);
@@ -204,12 +235,23 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.addWidget("text", "filter", "F('confidence') > 0.5", (v: string) => { this.properties.filter = v; });
+      this.addWidget("text", "filter", "F('label') == 'car'", (v: string) => { this.properties.filter = v; });
       this.addWidget("toggle", "bool", true, (v: boolean) => { this.properties.bool = v; });
-      this.properties = { field: "", filter: "F('confidence') > 0.5", bool: true };
-      this.size = [320, 130];
+      this.properties = { field: "", filter: "F('label') == 'car'", bool: true };
+      this.size = [320, 150];
       this.color = "#2A633A";
       this.bgcolor = "#1E4A2B";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const field = this.properties.field;
+      const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
+      if (classes.length > 0) {
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.textAlign = "left";
+        const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
+        ctx.fillText("classes: " + preview, 8, this.size[1] - 6);
+      }
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Match Labels", FO_MatchLabels as any);
@@ -467,114 +509,6 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Find Near Duplicates", FO_FindNearDuplicates as any);
-
-  // ─── Aggregations ─────────────────────────────────────────────
-
-  class FO_Count extends LGraphNode {
-    static title = "Count";
-    static desc = "Count samples in the view";
-    constructor() {
-      super();
-      this.title = "Count";
-      this.addInput("view", "FO_VIEW");
-      this.properties = { result: null };
-      this.size = [200, 70];
-      this.color = "#7D6608";
-      this.bgcolor = "#5C4B08";
-    }
-    onDrawForeground(ctx: CanvasRenderingContext2D) {
-      if (this.properties.result !== null && this.properties.result !== undefined) {
-        ctx.font = "bold 20px monospace";
-        ctx.fillStyle = "#FFD700";
-        ctx.textAlign = "center";
-        ctx.fillText(String(this.properties.result), this.size[0] / 2, this.size[1] - 15);
-      }
-    }
-  }
-  LiteGraph.registerNodeType("FiftyComfy/Aggregations/Count", FO_Count as any);
-
-  class FO_CountValues extends LGraphNode {
-    static title = "Count Values";
-    static desc = "Count occurrences of each value in a field";
-    constructor() {
-      super();
-      this.title = "Count Values";
-      this.addInput("view", "FO_VIEW");
-      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.properties = { field: "", result: null };
-      this.size = [300, 140];
-      this.color = "#7D6608";
-      this.bgcolor = "#5C4B08";
-    }
-    onDrawForeground(ctx: CanvasRenderingContext2D) {
-      if (this.properties.result) {
-        ctx.font = "12px monospace";
-        ctx.fillStyle = "#FFD700";
-        ctx.textAlign = "left";
-        let y = 70;
-        const entries = Object.entries(this.properties.result).slice(0, 5);
-        for (const [key, val] of entries) {
-          ctx.fillText(`${key}: ${val}`, 10, y);
-          y += 16;
-        }
-        if (Object.keys(this.properties.result).length > 5) {
-          ctx.fillText("...", 10, y);
-        }
-      }
-    }
-  }
-  LiteGraph.registerNodeType("FiftyComfy/Aggregations/Count Values", FO_CountValues as any);
-
-  class FO_Distinct extends LGraphNode {
-    static title = "Distinct";
-    static desc = "Get distinct values for a field";
-    constructor() {
-      super();
-      this.title = "Distinct";
-      this.addInput("view", "FO_VIEW");
-      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.properties = { field: "", result: null };
-      this.size = [280, 120];
-      this.color = "#7D6608";
-      this.bgcolor = "#5C4B08";
-    }
-    onDrawForeground(ctx: CanvasRenderingContext2D) {
-      if (this.properties.result) {
-        ctx.font = "12px monospace";
-        ctx.fillStyle = "#FFD700";
-        ctx.textAlign = "left";
-        const vals = (this.properties.result as any[]).slice(0, 6);
-        let y = 70;
-        for (const val of vals) { ctx.fillText(String(val), 10, y); y += 16; }
-      }
-    }
-  }
-  LiteGraph.registerNodeType("FiftyComfy/Aggregations/Distinct", FO_Distinct as any);
-
-  class FO_Bounds extends LGraphNode {
-    static title = "Bounds";
-    static desc = "Get min/max bounds for a numeric field";
-    constructor() {
-      super();
-      this.title = "Bounds";
-      this.addInput("view", "FO_VIEW");
-      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.properties = { field: "", result: null };
-      this.size = [240, 90];
-      this.color = "#7D6608";
-      this.bgcolor = "#5C4B08";
-    }
-    onDrawForeground(ctx: CanvasRenderingContext2D) {
-      if (this.properties.result) {
-        const [min, max] = this.properties.result;
-        ctx.font = "14px monospace";
-        ctx.fillStyle = "#FFD700";
-        ctx.textAlign = "left";
-        ctx.fillText(`[${min}, ${max}]`, 10, this.size[1] - 15);
-      }
-    }
-  }
-  LiteGraph.registerNodeType("FiftyComfy/Aggregations/Bounds", FO_Bounds as any);
 
   // ─── Output ───────────────────────────────────────────────────
 

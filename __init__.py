@@ -176,11 +176,77 @@ class GetDatasetInfo(foo.Operator):
                 "label_fields": [],
                 "saved_views": [],
                 "tags": [],
+                "label_classes": {},
             }
+
+        import fiftyone.core.labels as fol
+
+        # Types that support to_patches / filter_labels / match_labels
+        _LABEL_LIST_TYPES = (
+            fol.Detections,
+            fol.Polylines,
+            fol.Keypoints,
+        )
+        _LABEL_TYPES = (
+            fol.Classification,
+            fol.Classifications,
+            fol.Detections,
+            fol.Polylines,
+            fol.Keypoints,
+        )
 
         schema = ctx.dataset.get_field_schema()
         fields = list(schema.keys())
-        label_fields = [k for k, v in schema.items() if hasattr(v, "document_type")]
+
+        # Identify label fields by checking the document_type of
+        # EmbeddedDocumentFields against known FiftyOne label types
+        label_fields = []
+        patches_fields = []
+        label_classes = {}
+
+        for name, field in schema.items():
+            doc_type = getattr(field, "document_type", None)
+            if doc_type is None:
+                continue
+
+            if issubclass(doc_type, _LABEL_TYPES):
+                label_fields.append(name)
+
+            if issubclass(doc_type, _LABEL_LIST_TYPES):
+                patches_fields.append(name)
+
+            # Collect distinct class labels for each label field
+            try:
+                if issubclass(doc_type, (fol.Detections,)):
+                    vals = ctx.dataset.distinct(
+                        f"{name}.detections.label"
+                    )
+                    if vals:
+                        label_classes[name] = vals
+                elif issubclass(doc_type, (fol.Classifications,)):
+                    vals = ctx.dataset.distinct(
+                        f"{name}.classifications.label"
+                    )
+                    if vals:
+                        label_classes[name] = vals
+                elif issubclass(doc_type, (fol.Polylines,)):
+                    vals = ctx.dataset.distinct(
+                        f"{name}.polylines.label"
+                    )
+                    if vals:
+                        label_classes[name] = vals
+                elif issubclass(doc_type, (fol.Keypoints,)):
+                    vals = ctx.dataset.distinct(
+                        f"{name}.keypoints.label"
+                    )
+                    if vals:
+                        label_classes[name] = vals
+                elif issubclass(doc_type, (fol.Classification,)):
+                    vals = ctx.dataset.distinct(f"{name}.label")
+                    if vals:
+                        label_classes[name] = vals
+            except Exception:
+                pass
 
         try:
             saved_views = ctx.dataset.list_saved_views()
@@ -196,8 +262,10 @@ class GetDatasetInfo(foo.Operator):
             "dataset_name": ctx.dataset.name,
             "fields": fields,
             "label_fields": label_fields,
+            "patches_fields": patches_fields,
             "saved_views": saved_views,
             "tags": tags,
+            "label_classes": label_classes,
         }
 
 

@@ -1,10 +1,9 @@
 /**
  * FiftyComfyView — LiteGraph canvas panel component.
  *
- * Fixes applied:
- * - Canvas resize: let _lgCanvas.resize() handle both canvas + bgcanvas
- * - Save/Load: use browser localStorage instead of Python operators
- * - Node titles: handled in registerNodes.ts via this.title in constructors
+ * Singleton pattern: _graph survives React remounts (panel move/resize).
+ * Each mount creates a fresh LGraphCanvas bound to the new DOM canvas element,
+ * and reattaches the existing graph to it.
  */
 
 import * as React from "react";
@@ -22,6 +21,7 @@ let _graph: LGraph | null = null;
 let _lgCanvas: LGraphCanvas | null = null;
 let _initialized = false;
 let _cssInjected = false;
+let _datasetInfoFetched = false;
 
 // ─── localStorage helpers for workflow persistence ─────────────────
 function getSavedWorkflows(): Record<string, any> {
@@ -95,6 +95,32 @@ const sepCss: React.CSSProperties = {
   margin: "0 2px",
 };
 
+// ─── Fetch dataset info (once per session) ─────────────────────────
+function fetchDatasetInfo() {
+  if (_datasetInfoFetched) return;
+  _datasetInfoFetched = true;
+
+  executeOperator(`${NS}/get_dataset_info`, {})
+    .then((result: any) => {
+      // executeOperator may return { result: {...} } or the data directly
+      const info = (result && result.result) ? result.result : result;
+      if (info && info.fields) {
+        setDatasetInfo(info);
+        if (_graph) updateAllComboWidgets(_graph);
+        console.log(
+          "[FiftyComfy] Dataset info loaded:",
+          info.fields?.length, "fields,",
+          info.label_fields?.length, "label fields,",
+          Object.keys(info.label_classes || {}).length, "label class fields"
+        );
+      }
+    })
+    .catch((e: any) => {
+      console.warn("[FiftyComfy] Could not fetch dataset info:", e);
+      _datasetInfoFetched = false; // allow retry on next mount
+    });
+}
+
 // ─── Component ─────────────────────────────────────────────────────
 
 export default function FiftyComfyView() {
@@ -105,12 +131,13 @@ export default function FiftyComfyView() {
   const [showLoad, setShowLoad] = useState(false);
   const [savedNames, setSavedNames] = useState<string[]>([]);
 
-  // ---- Init LiteGraph (singleton) ----
+  // ---- Init LiteGraph (singleton graph, fresh canvas per mount) ----
   useEffect(() => {
     const el = canvasRef.current;
     const container = containerRef.current;
     if (!el || !container) return;
 
+    // Inject LiteGraph CSS once
     if (!_cssInjected) {
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
@@ -119,6 +146,7 @@ export default function FiftyComfyView() {
       _cssInjected = true;
     }
 
+    // Register node types once
     if (!_initialized) {
       registerAllNodes();
       (LiteGraph as any).allow_edit_node_title = false;
@@ -133,19 +161,28 @@ export default function FiftyComfyView() {
       _initialized = true;
     }
 
+    // Create graph once (survives remounts)
     if (!_graph) {
       _graph = new LGraph();
+      hookNodeAdded(_graph);
     }
 
+    // Stop old canvas render loop if one exists from a previous mount
+    if (_lgCanvas) {
+      try {
+        // Detach old canvas from the graph to prevent conflicts
+        (_lgCanvas as any).setGraph(null);
+      } catch { /* ignore */ }
+      _lgCanvas = null;
+    }
+
+    // Create a fresh LGraphCanvas bound to the new DOM element
     _lgCanvas = new LGraphCanvas(el, _graph);
     _lgCanvas.render_shadows = false;
     _lgCanvas.max_zoom = 4;
     _lgCanvas.min_zoom = 0.1;
     _lgCanvas.allow_searchbox = true;
     (_lgCanvas as any).show_searchbox_on_double_click = true;
-
-    // Use LiteGraph's default background (grid pattern, works at all zoom levels)
-
     _lgCanvas.render_curved_connections = true;
     (_lgCanvas as any).render_connection_arrows = false;
     (_lgCanvas as any).connections_width = 3;
@@ -156,37 +193,23 @@ export default function FiftyComfyView() {
       output_on: "#4FC3F7",
     };
 
-    // Hook combo population for newly added nodes
-    hookNodeAdded(_graph);
+    // Enable autoresize so LiteGraph auto-adapts on mouse events
+    (_lgCanvas as any).autoresize = true;
 
+    // Ensure the graph's render loop is running
     _graph.start();
 
-    // Fetch dataset info and populate combo widgets
-    executeOperator(`${NS}/get_dataset_info`, {})
-      .then((result: any) => {
-        if (result && result.result) {
-          const info = result.result;
-          setDatasetInfo(info);
-          if (_graph) updateAllComboWidgets(_graph);
-          console.log("[FiftyComfy] Dataset info loaded:", info.fields?.length, "fields,", info.label_fields?.length, "label fields");
-        }
-      })
-      .catch((e: any) => {
-        console.warn("[FiftyComfy] Could not fetch dataset info:", e);
-      });
+    // Fetch dataset info (once per session, not per mount)
+    fetchDatasetInfo();
 
-    // Resize canvas to fill the container.
-    // We set canvas dimensions directly AND call resize() to sync bgcanvas.
-    // Using requestAnimationFrame ensures the container has been laid out.
+    // Resize canvas to fill the container
     const doResize = () => {
       if (!container || !el || !_lgCanvas) return;
       const w = container.offsetWidth || container.clientWidth;
       const h = container.offsetHeight || container.clientHeight;
-      if (w === 0 || h === 0) return; // not laid out yet
-      // Set canvas element dimensions directly
+      if (w === 0 || h === 0) return;
       el.width = w;
       el.height = h;
-      // Also set bgcanvas via the internal reference
       const bg = (_lgCanvas as any).bgcanvas;
       if (bg) {
         bg.width = w;
@@ -195,17 +218,19 @@ export default function FiftyComfyView() {
       _lgCanvas.setDirty(true, true);
     };
 
-    // Initial resize after layout
     doResize();
-    // Retry after a frame in case container wasn't laid out yet
     requestAnimationFrame(doResize);
-    // And once more after a short delay for good measure
     setTimeout(doResize, 100);
 
     const ro = new ResizeObserver(doResize);
     ro.observe(container);
 
-    return () => { ro.disconnect(); };
+    return () => {
+      ro.disconnect();
+      // Do NOT destroy _graph here — it survives remounts.
+      // Do NOT call _graph.stop() — the render loop should keep running.
+      // The canvas will be cleaned up when the DOM element is removed.
+    };
   }, []);
 
   // ---- Run Workflow ----
