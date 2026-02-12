@@ -466,5 +466,18 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Save View", FO_SaveView as any);
 
+  // Ensure every registered node type has its title set on the prototype
+  // so LiteGraph always shows the operation name (not the type path)
+  const allTypes = LiteGraph.registered_node_types || {};
+  for (const [typePath, nodeClass] of Object.entries(allTypes)) {
+    if (typePath.startsWith("FiftyComfy/") && nodeClass) {
+      const cls = nodeClass as any;
+      // If the class has a static title, ensure the prototype also has it
+      if (cls.title) {
+        cls.prototype.title = cls.title;
+      }
+    }
+  }
+
   console.log("[FiftyComfy] Registered all node types");
 }

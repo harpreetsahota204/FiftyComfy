@@ -4,7 +4,7 @@
 
 import * as React from "react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { useOperatorExecutor, executeOperator } from "@fiftyone/operators";
+import { executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
 import { registerAllNodes } from "./litegraph/registerNodes";
@@ -61,6 +61,20 @@ const sepCss: React.CSSProperties = {
   margin: "0 2px",
 };
 
+// ─── Helper: call a Python operator and get its result ─────────────
+async function callOperator(name: string, params: Record<string, any> = {}): Promise<any> {
+  try {
+    const res = await executeOperator(`${NS}/${name}`, params, { callback: undefined });
+    // executeOperator may return { result: {...} } or the result directly
+    console.log(`[FiftyComfy] ${name} raw result:`, res);
+    if (res && typeof res === "object" && "result" in res) return res.result;
+    return res;
+  } catch (e) {
+    console.error(`[FiftyComfy] ${name} error:`, e);
+    return null;
+  }
+}
+
 // ─── Component ─────────────────────────────────────────────────────
 
 export default function FiftyComfyView() {
@@ -70,11 +84,6 @@ export default function FiftyComfyView() {
   const [running, setRunning] = useState(false);
   const [showLoad, setShowLoad] = useState(false);
   const [saved, setSaved] = useState<{ id: string; name: string }[]>([]);
-
-  // useOperatorExecutor for operations that RETURN results
-  const saveOp = useOperatorExecutor(`${NS}/save_graph`);
-  const loadListOp = useOperatorExecutor(`${NS}/load_graphs`);
-  const loadOp = useOperatorExecutor(`${NS}/load_graph`);
 
   // ---- Init LiteGraph (singleton) ----
   useEffect(() => {
@@ -93,6 +102,16 @@ export default function FiftyComfyView() {
     if (!_initialized) {
       registerAllNodes();
       (LiteGraph as any).allow_edit_node_title = false;
+
+      // ── Make connection lines bright and visible ──
+      // Default link color (when not associated with a type)
+      (LiteGraph as any).DEFAULT_LINK_COLOR = "#99ccff";
+      (LiteGraph as any).LINK_COLOR = "#99ccff";
+      (LiteGraph as any).EVENT_LINK_COLOR = "#ff9966";
+      // FO_VIEW type link color
+      (LiteGraph as any).registered_link_types = (LiteGraph as any).registered_link_types || {};
+      (LiteGraph as any).registered_link_types["FO_VIEW"] = { color: "#4FC3F7" };
+
       _initialized = true;
     }
 
@@ -107,19 +126,38 @@ export default function FiftyComfyView() {
     _lgCanvas.allow_searchbox = true;
     (_lgCanvas as any).show_searchbox_on_double_click = true;
     (_lgCanvas as any).background_image = undefined;
-    // Use a neutral dark grey that blends with the FiftyOne App
     (_lgCanvas as any).clear_background_color = "#1e1e1e";
     _lgCanvas.render_curved_connections = true;
     (_lgCanvas as any).render_connection_arrows = false;
 
+    // Make links thicker and brighter
+    (_lgCanvas as any).connections_width = 3;
+    (_lgCanvas as any).default_connection_color = {
+      input_off: "#888",
+      input_on: "#4FC3F7",
+      output_off: "#888",
+      output_on: "#4FC3F7",
+    };
+
     _graph.start();
 
-    // Resize canvas to fill container completely
+    // Resize: sync canvas pixel buffer AND CSS size to container
+    // Both must match exactly or LiteGraph clips rendering
     const resize = () => {
       if (!el || !container) return;
-      el.width = container.offsetWidth;
-      el.height = container.offsetHeight;
-      if (_lgCanvas) _lgCanvas.setDirty(true, true);
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      // Set the pixel buffer dimensions
+      el.width = w;
+      el.height = h;
+      // Set CSS dimensions to match exactly (no stretching)
+      el.style.width = w + "px";
+      el.style.height = h + "px";
+      // Tell LiteGraph to resize its viewport
+      if (_lgCanvas) {
+        (_lgCanvas as any).resize(w, h);
+        _lgCanvas.setDirty(true, true);
+      }
     };
     resize();
 
@@ -129,70 +167,61 @@ export default function FiftyComfyView() {
     return () => { ro.disconnect(); };
   }, []);
 
-  // ---- Run Workflow (fire-and-forget via executeOperator) ----
+  // ---- Run Workflow ----
   const handleRun = useCallback(async () => {
     if (!_graph) return;
-
     for (const n of (_graph as any)._nodes || []) {
       n.boxcolor = null;
       n.setDirtyCanvas(true, true);
     }
-
     setRunning(true);
     setStatus("Running...");
-
     try {
-      const serialized = _graph.serialize();
       await executeOperator(`${NS}/execute_graph`, {
-        graph_json: JSON.stringify(serialized),
+        graph_json: JSON.stringify(_graph.serialize()),
       });
     } catch (e: any) {
       console.error("[FiftyComfy] Execution error:", e);
     }
-    // The operator is a generator — set_progress/notify calls happen server-side.
-    // Once executeOperator resolves, execution is done.
     setRunning(false);
     setStatus("Done");
   }, []);
 
-  // ---- Save (needs result confirmation) ----
+  // ---- Save ----
   const handleSave = useCallback(async () => {
     if (!_graph) return;
     const name = prompt("Workflow name:");
     if (!name) return;
-    try {
-      await saveOp.execute({
-        name,
-        graph_json: JSON.stringify(_graph.serialize()),
-      });
-      setStatus("Saved: " + name);
-    } catch (e: any) { console.error("[FiftyComfy] Save error:", e); }
-  }, [saveOp]);
+    const result = await callOperator("save_graph", {
+      name,
+      graph_json: JSON.stringify(_graph.serialize()),
+    });
+    if (result) setStatus("Saved: " + name);
+  }, []);
 
-  // ---- Load list (needs results) ----
+  // ---- Load list ----
   const handleLoadList = useCallback(async () => {
-    try {
-      const result = await loadListOp.execute({});
-      // The result from useOperatorExecutor is the operator's return value
-      const graphs = (result as any)?.graphs || [];
-      setSaved(graphs);
-      setShowLoad(true);
-    } catch (e: any) { console.error("[FiftyComfy] Load list error:", e); }
-  }, [loadListOp]);
+    const result = await callOperator("load_graphs", {});
+    console.log("[FiftyComfy] load_graphs parsed result:", result);
+    const graphs = result?.graphs || [];
+    setSaved(graphs);
+    setShowLoad(true);
+  }, []);
 
-  // ---- Load specific graph (needs results) ----
+  // ---- Load specific graph ----
   const handleLoad = useCallback(async (id: string) => {
     if (!_graph) return;
-    try {
-      const result = await loadOp.execute({ graph_id: id });
-      const graphData = (result as any)?.data?.graph;
-      if (graphData) {
-        _graph.configure(graphData);
-        setStatus("Loaded workflow");
-      }
-    } catch (e: any) { console.error("[FiftyComfy] Load error:", e); }
+    const result = await callOperator("load_graph", { graph_id: id });
+    console.log("[FiftyComfy] load_graph parsed result:", result);
+    const graphData = result?.data?.graph;
+    if (graphData) {
+      _graph.configure(graphData);
+      setStatus("Loaded workflow");
+    } else {
+      console.warn("[FiftyComfy] No graph data in result");
+    }
     setShowLoad(false);
-  }, [loadOp]);
+  }, []);
 
   // ---- Clear ----
   const handleClear = useCallback(() => {
@@ -211,12 +240,10 @@ export default function FiftyComfyView() {
       background: "#1e1e1e",
     },
   },
-    // Canvas fills ENTIRE container — no offset, no margin
     React.createElement("canvas", {
       ref: canvasRef,
-      style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
+      style: { position: "absolute", top: 0, left: 0 },
     }),
-    // Toolbar overlays top
     React.createElement("div", { style: toolbarCss },
       React.createElement("button", {
         style: btnRunCss,
@@ -232,7 +259,6 @@ export default function FiftyComfyView() {
         style: { marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.4)" },
       }, status),
     ),
-    // Load dropdown
     showLoad && React.createElement("div", {
       style: {
         position: "absolute", top: TH + 4, left: 100, zIndex: 20,
