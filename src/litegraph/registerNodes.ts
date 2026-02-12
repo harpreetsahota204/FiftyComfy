@@ -15,6 +15,8 @@ interface DatasetInfo {
   fields: string[];
   label_fields: string[];
   patches_fields: string[];
+  detection_fields: string[];
+  classification_fields: string[];
   saved_views: string[];
   tags: string[];
   label_classes: Record<string, string[]>;
@@ -28,6 +30,8 @@ let _datasetInfo: DatasetInfo = {
   fields: [],
   label_fields: [],
   patches_fields: [],
+  detection_fields: [],
+  classification_fields: [],
   saved_views: [],
   tags: [],
   label_classes: {},
@@ -94,14 +98,23 @@ function populateNodeCombos(node: any): void {
         ? _datasetInfo.zoo_models
         : ["(no models available)"];
     }
-    // Evaluation pred/gt fields
+    // Evaluate Detections: show only detection-type fields
     else if (
       (name === "pred_field" || name === "gt_field") &&
-      t.includes("Evaluation/")
+      t.includes("Evaluate Detections")
     ) {
-      w.options.values = _datasetInfo.label_fields.length > 0
-        ? _datasetInfo.label_fields
-        : ["(no label fields)"];
+      w.options.values = _datasetInfo.detection_fields.length > 0
+        ? _datasetInfo.detection_fields
+        : ["(no detection fields)"];
+    }
+    // Evaluate Classifications: show only classification-type fields
+    else if (
+      (name === "pred_field" || name === "gt_field") &&
+      t.includes("Evaluate Classifications")
+    ) {
+      w.options.values = _datasetInfo.classification_fields.length > 0
+        ? _datasetInfo.classification_fields
+        : ["(no classification fields)"];
     }
     // Evaluation runs: Manage Evaluation node
     else if (name === "eval_key" && t.includes("Manage Evaluation")) {

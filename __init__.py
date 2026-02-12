@@ -206,6 +206,17 @@ class GetDatasetInfo(foo.Operator):
             "fiftyone.core.labels.Polylines",
             "fiftyone.core.labels.Keypoints",
         }
+        # Detection-type fields (for evaluate_detections)
+        _DETECTION_FQNS = {
+            "fiftyone.core.labels.Detections",
+            "fiftyone.core.labels.Polylines",
+            "fiftyone.core.labels.Keypoints",
+        }
+        # Classification-type fields (for evaluate_classifications)
+        _CLASSIFICATION_FQNS = {
+            "fiftyone.core.labels.Classification",
+            "fiftyone.core.labels.Classifications",
+        }
         # Map FQN -> sub-field path for distinct label queries
         _LABEL_PATH_MAP = {
             "fiftyone.core.labels.Detections": "detections.label",
@@ -220,6 +231,8 @@ class GetDatasetInfo(foo.Operator):
 
         label_fields = []
         patches_fields = []
+        detection_fields = []
+        classification_fields = []
         label_classes = {}
 
         for name, field in schema.items():
@@ -232,6 +245,12 @@ class GetDatasetInfo(foo.Operator):
 
             if fqn in _PATCHES_FQNS:
                 patches_fields.append(name)
+
+            if fqn in _DETECTION_FQNS:
+                detection_fields.append(name)
+
+            if fqn in _CLASSIFICATION_FQNS:
+                classification_fields.append(name)
 
             # Collect distinct class labels
             sub_path = _LABEL_PATH_MAP.get(fqn)
@@ -308,6 +327,8 @@ class GetDatasetInfo(foo.Operator):
                 "patches_fields": patches_fields,
                 "saved_views": saved_views,
                 "tags": tags,
+                "detection_fields": detection_fields,
+                "classification_fields": classification_fields,
                 "label_classes": label_classes,
                 "brain_runs": brain_runs,
                 "evaluations": evaluations,
