@@ -1,5 +1,10 @@
 /**
  * FiftyComfyView — LiteGraph canvas panel component.
+ *
+ * Fixes applied:
+ * - Canvas resize: let _lgCanvas.resize() handle both canvas + bgcanvas
+ * - Save/Load: use browser localStorage instead of Python operators
+ * - Node titles: handled in registerNodes.ts via this.title in constructors
  */
 
 import * as React from "react";
@@ -10,12 +15,41 @@ import litegraphCss from "@comfyorg/litegraph/style.css?inline";
 import { registerAllNodes } from "./litegraph/registerNodes";
 
 const NS = "@harpreetsahota/FiftyComfy";
+const STORAGE_KEY = "fiftycomfy_workflows";
 
 // ─── Module-level singleton (survives React remounts) ──────────────
 let _graph: LGraph | null = null;
 let _lgCanvas: LGraphCanvas | null = null;
 let _initialized = false;
 let _cssInjected = false;
+
+// ─── localStorage helpers for workflow persistence ─────────────────
+function getSavedWorkflows(): Record<string, any> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveWorkflow(name: string, graphData: any) {
+  const all = getSavedWorkflows();
+  all[name] = graphData;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
+function listWorkflowNames(): string[] {
+  return Object.keys(getSavedWorkflows());
+}
+
+function loadWorkflow(name: string): any | null {
+  return getSavedWorkflows()[name] || null;
+}
+
+function deleteWorkflow(name: string) {
+  const all = getSavedWorkflows();
+  delete all[name];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
 
 // ─── Styles ────────────────────────────────────────────────────────
 const TH = 36;
@@ -61,20 +95,6 @@ const sepCss: React.CSSProperties = {
   margin: "0 2px",
 };
 
-// ─── Helper: call a Python operator and get its result ─────────────
-async function callOperator(name: string, params: Record<string, any> = {}): Promise<any> {
-  try {
-    const res = await executeOperator(`${NS}/${name}`, params, { callback: undefined });
-    // executeOperator may return { result: {...} } or the result directly
-    console.log(`[FiftyComfy] ${name} raw result:`, res);
-    if (res && typeof res === "object" && "result" in res) return res.result;
-    return res;
-  } catch (e) {
-    console.error(`[FiftyComfy] ${name} error:`, e);
-    return null;
-  }
-}
-
 // ─── Component ─────────────────────────────────────────────────────
 
 export default function FiftyComfyView() {
@@ -83,7 +103,7 @@ export default function FiftyComfyView() {
   const [status, setStatus] = useState("Ready");
   const [running, setRunning] = useState(false);
   const [showLoad, setShowLoad] = useState(false);
-  const [saved, setSaved] = useState<{ id: string; name: string }[]>([]);
+  const [savedNames, setSavedNames] = useState<string[]>([]);
 
   // ---- Init LiteGraph (singleton) ----
   useEffect(() => {
@@ -103,12 +123,10 @@ export default function FiftyComfyView() {
       registerAllNodes();
       (LiteGraph as any).allow_edit_node_title = false;
 
-      // ── Make connection lines bright and visible ──
-      // Default link color (when not associated with a type)
+      // Bright connection line colors
       (LiteGraph as any).DEFAULT_LINK_COLOR = "#99ccff";
       (LiteGraph as any).LINK_COLOR = "#99ccff";
       (LiteGraph as any).EVENT_LINK_COLOR = "#ff9966";
-      // FO_VIEW type link color
       (LiteGraph as any).registered_link_types = (LiteGraph as any).registered_link_types || {};
       (LiteGraph as any).registered_link_types["FO_VIEW"] = { color: "#4FC3F7" };
 
@@ -129,8 +147,6 @@ export default function FiftyComfyView() {
     (_lgCanvas as any).clear_background_color = "#1e1e1e";
     _lgCanvas.render_curved_connections = true;
     (_lgCanvas as any).render_connection_arrows = false;
-
-    // Make links thicker and brighter
     (_lgCanvas as any).connections_width = 3;
     (_lgCanvas as any).default_connection_color = {
       input_off: "#888",
@@ -139,25 +155,19 @@ export default function FiftyComfyView() {
       output_on: "#4FC3F7",
     };
 
+    // Enable autoresize so LiteGraph auto-adapts on mouse events
+    (_lgCanvas as any).autoresize = true;
+
     _graph.start();
 
-    // Resize: sync canvas pixel buffer AND CSS size to container
-    // Both must match exactly or LiteGraph clips rendering
+    // FIX: Let _lgCanvas.resize() handle BOTH canvas and bgcanvas.
+    // Do NOT set el.width/el.height manually — that causes resize()
+    // to short-circuit and skip bgcanvas, clipping connections.
     const resize = () => {
-      if (!el || !container) return;
+      if (!container || !_lgCanvas) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
-      // Set the pixel buffer dimensions
-      el.width = w;
-      el.height = h;
-      // Set CSS dimensions to match exactly (no stretching)
-      el.style.width = w + "px";
-      el.style.height = h + "px";
-      // Tell LiteGraph to resize its viewport
-      if (_lgCanvas) {
-        (_lgCanvas as any).resize(w, h);
-        _lgCanvas.setDirty(true, true);
-      }
+      (_lgCanvas as any).resize(w, h);
     };
     resize();
 
@@ -187,38 +197,28 @@ export default function FiftyComfyView() {
     setStatus("Done");
   }, []);
 
-  // ---- Save ----
-  const handleSave = useCallback(async () => {
+  // ---- Save (localStorage) ----
+  const handleSave = useCallback(() => {
     if (!_graph) return;
     const name = prompt("Workflow name:");
     if (!name) return;
-    const result = await callOperator("save_graph", {
-      name,
-      graph_json: JSON.stringify(_graph.serialize()),
-    });
-    if (result) setStatus("Saved: " + name);
+    saveWorkflow(name, _graph.serialize());
+    setStatus("Saved: " + name);
   }, []);
 
-  // ---- Load list ----
-  const handleLoadList = useCallback(async () => {
-    const result = await callOperator("load_graphs", {});
-    console.log("[FiftyComfy] load_graphs parsed result:", result);
-    const graphs = result?.graphs || [];
-    setSaved(graphs);
+  // ---- Load list (localStorage) ----
+  const handleLoadList = useCallback(() => {
+    setSavedNames(listWorkflowNames());
     setShowLoad(true);
   }, []);
 
-  // ---- Load specific graph ----
-  const handleLoad = useCallback(async (id: string) => {
+  // ---- Load specific graph (localStorage) ----
+  const handleLoad = useCallback((name: string) => {
     if (!_graph) return;
-    const result = await callOperator("load_graph", { graph_id: id });
-    console.log("[FiftyComfy] load_graph parsed result:", result);
-    const graphData = result?.data?.graph;
-    if (graphData) {
-      _graph.configure(graphData);
-      setStatus("Loaded workflow");
-    } else {
-      console.warn("[FiftyComfy] No graph data in result");
+    const data = loadWorkflow(name);
+    if (data) {
+      _graph.configure(data);
+      setStatus("Loaded: " + name);
     }
     setShowLoad(false);
   }, []);
@@ -276,16 +276,16 @@ export default function FiftyComfyView() {
           onClick: () => setShowLoad(false),
         }, "\u2715"),
       ),
-      saved.length === 0
+      savedNames.length === 0
         ? React.createElement("div", { style: { fontSize: 12, color: "#666", padding: 8 } }, "No saved workflows")
-        : saved.map((g) =>
+        : savedNames.map((name) =>
             React.createElement("div", {
-              key: g.id,
-              onClick: () => handleLoad(g.id),
+              key: name,
+              onClick: () => handleLoad(name),
               style: { padding: "5px 8px", cursor: "pointer", borderRadius: 4, fontSize: 12, color: "#ddd" },
               onMouseOver: (e: any) => { e.currentTarget.style.background = "#3a3a3a"; },
               onMouseOut: (e: any) => { e.currentTarget.style.background = "transparent"; },
-            }, g.name)
+            }, name)
           ),
     ),
   );

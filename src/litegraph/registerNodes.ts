@@ -1,21 +1,13 @@
 /**
  * Lazy node registration for LiteGraph.
  *
- * IMPORTANT: We do NOT import node files at the module top level.
- * All LiteGraph.registerNodeType() calls happen inside
- * registerAllNodes(), which is called from the React component's
- * useEffect — only after the DOM is ready and the component has
- * mounted.
+ * Every node sets this.title in its constructor for reliable display.
  */
 
 import { LiteGraph, LGraphNode } from "@comfyorg/litegraph";
 
 let registered = false;
 
-/**
- * Register all FiftyOne node types with LiteGraph.
- * Safe to call multiple times — only registers once.
- */
 export function registerAllNodes(): void {
   if (registered) return;
   registered = true;
@@ -27,6 +19,7 @@ export function registerAllNodes(): void {
     static desc = "Use the dataset currently loaded in the App";
     constructor() {
       super();
+      this.title = "Current Dataset";
       this.addOutput("view", "FO_VIEW");
       this.properties = {};
       this.size = [220, 50];
@@ -41,6 +34,7 @@ export function registerAllNodes(): void {
     static desc = "Load a saved view from the dataset";
     constructor() {
       super();
+      this.title = "Load Saved View";
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "view_name", "", (v: string) => {
         this.properties.view_name = v;
@@ -60,6 +54,7 @@ export function registerAllNodes(): void {
     static desc = "Filter samples by a ViewExpression";
     constructor() {
       super();
+      this.title = "Match";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "expression", "F('confidence') > 0.5", (v: string) => {
@@ -78,6 +73,7 @@ export function registerAllNodes(): void {
     static desc = "Filter detections/classifications within a label field";
     constructor() {
       super();
+      this.title = "Filter Labels";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
@@ -96,6 +92,7 @@ export function registerAllNodes(): void {
     static desc = "Sort samples by a field";
     constructor() {
       super();
+      this.title = "Sort By";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
@@ -113,6 +110,7 @@ export function registerAllNodes(): void {
     static desc = "Limit number of samples";
     constructor() {
       super();
+      this.title = "Limit";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10 });
@@ -129,6 +127,7 @@ export function registerAllNodes(): void {
     static desc = "Filter samples where a field exists";
     constructor() {
       super();
+      this.title = "Exists";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
@@ -146,6 +145,7 @@ export function registerAllNodes(): void {
     static desc = "Filter samples by tags (comma-separated)";
     constructor() {
       super();
+      this.title = "Match Tags";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "tags", "", (v: string) => { this.properties.tags = v; });
@@ -162,6 +162,7 @@ export function registerAllNodes(): void {
     static desc = "Randomly sample N samples";
     constructor() {
       super();
+      this.title = "Take";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10 });
@@ -179,6 +180,7 @@ export function registerAllNodes(): void {
     static desc = "Randomly shuffle samples";
     constructor() {
       super();
+      this.title = "Shuffle";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1 });
@@ -195,6 +197,7 @@ export function registerAllNodes(): void {
     static desc = "Select only specified fields (comma-separated)";
     constructor() {
       super();
+      this.title = "Select Fields";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
@@ -211,6 +214,7 @@ export function registerAllNodes(): void {
     static desc = "Exclude specified fields (comma-separated)";
     constructor() {
       super();
+      this.title = "Exclude Fields";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
@@ -229,6 +233,7 @@ export function registerAllNodes(): void {
     static desc = "Compute embeddings using a zoo model";
     constructor() {
       super();
+      this.title = "Compute Embeddings";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "model", "clip-vit-base32-torch", (v: string) => { this.properties.model = v; }, {
@@ -248,6 +253,7 @@ export function registerAllNodes(): void {
     static desc = "Compute UMAP/t-SNE/PCA embedding visualization";
     constructor() {
       super();
+      this.title = "Compute Visualization";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "brain_key", "visualization", (v: string) => { this.properties.brain_key = v; });
@@ -267,6 +273,7 @@ export function registerAllNodes(): void {
     static desc = "Create a similarity index";
     constructor() {
       super();
+      this.title = "Compute Similarity";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
@@ -285,6 +292,7 @@ export function registerAllNodes(): void {
     static desc = "Compute uniqueness score per sample";
     constructor() {
       super();
+      this.title = "Compute Uniqueness";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "uniqueness_field", "uniqueness", (v: string) => { this.properties.uniqueness_field = v; });
@@ -302,6 +310,7 @@ export function registerAllNodes(): void {
     static desc = "Find samples with identical media files";
     constructor() {
       super();
+      this.title = "Find Exact Duplicates";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.properties = {};
@@ -317,6 +326,7 @@ export function registerAllNodes(): void {
     static desc = "Find near-duplicate samples using embeddings";
     constructor() {
       super();
+      this.title = "Find Near Duplicates";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "threshold", 0.1, (v: number) => { this.properties.threshold = v; }, { min: 0.001, max: 1.0, step: 0.01, precision: 3 });
@@ -336,6 +346,7 @@ export function registerAllNodes(): void {
     static desc = "Count samples in the view";
     constructor() {
       super();
+      this.title = "Count";
       this.addInput("view", "FO_VIEW");
       this.properties = { result: null };
       this.size = [200, 70];
@@ -358,6 +369,7 @@ export function registerAllNodes(): void {
     static desc = "Count occurrences of each value in a field";
     constructor() {
       super();
+      this.title = "Count Values";
       this.addInput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
       this.properties = { field: "", result: null };
@@ -389,6 +401,7 @@ export function registerAllNodes(): void {
     static desc = "Get distinct values for a field";
     constructor() {
       super();
+      this.title = "Distinct";
       this.addInput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
       this.properties = { field: "", result: null };
@@ -414,6 +427,7 @@ export function registerAllNodes(): void {
     static desc = "Get min/max bounds for a numeric field";
     constructor() {
       super();
+      this.title = "Bounds";
       this.addInput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
       this.properties = { field: "", result: null };
@@ -440,6 +454,7 @@ export function registerAllNodes(): void {
     static desc = "Push the resulting view into the FiftyOne App";
     constructor() {
       super();
+      this.title = "Set App View";
       this.addInput("view", "FO_VIEW");
       this.properties = {};
       this.size = [220, 50];
@@ -454,6 +469,7 @@ export function registerAllNodes(): void {
     static desc = "Save the view as a named saved view";
     constructor() {
       super();
+      this.title = "Save View";
       this.addInput("view", "FO_VIEW");
       this.addWidget("text", "name", "my_view", (v: string) => { this.properties.name = v; });
       this.addWidget("text", "description", "", (v: string) => { this.properties.description = v; });
@@ -465,19 +481,6 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Save View", FO_SaveView as any);
-
-  // Ensure every registered node type has its title set on the prototype
-  // so LiteGraph always shows the operation name (not the type path)
-  const allTypes = LiteGraph.registered_node_types || {};
-  for (const [typePath, nodeClass] of Object.entries(allTypes)) {
-    if (typePath.startsWith("FiftyComfy/") && nodeClass) {
-      const cls = nodeClass as any;
-      // If the class has a static title, ensure the prototype also has it
-      if (cls.title) {
-        cls.prototype.title = cls.title;
-      }
-    }
-  }
 
   console.log("[FiftyComfy] Registered all node types");
 }
