@@ -2,11 +2,99 @@
  * Lazy node registration for LiteGraph.
  *
  * Every node sets this.title in its constructor for reliable display.
+ * Combo widgets are populated dynamically via setDatasetInfo() + updateAllComboWidgets().
  */
 
-import { LiteGraph, LGraphNode } from "@comfyorg/litegraph";
+import { LiteGraph, LGraphNode, LGraph } from "@comfyorg/litegraph";
 
 let registered = false;
+
+// ─── Dataset info cache (populated from Python via FiftyComfyView) ──
+interface DatasetInfo {
+  fields: string[];
+  label_fields: string[];
+  saved_views: string[];
+  tags: string[];
+}
+
+let _datasetInfo: DatasetInfo = {
+  fields: [],
+  label_fields: [],
+  saved_views: [],
+  tags: [],
+};
+
+/**
+ * Store dataset schema info so combo widgets can be populated.
+ * Called from FiftyComfyView after fetching from the Python backend.
+ */
+export function setDatasetInfo(info: DatasetInfo): void {
+  _datasetInfo = info;
+}
+
+/**
+ * Populate combo widget values on a single node based on its type
+ * and each widget's name.
+ */
+function populateNodeCombos(node: any): void {
+  if (!node.widgets) return;
+  const t: string = node.type || "";
+  for (const w of node.widgets) {
+    if (w.type !== "combo") continue;
+    const name: string = w.name || "";
+
+    // Saved views dropdown
+    if (name === "view_name" && t.includes("Source/")) {
+      w.options.values = _datasetInfo.saved_views.length > 0
+        ? _datasetInfo.saved_views
+        : ["(no saved views)"];
+    }
+    // Label fields: used by Filter Labels, Match Labels, To Patches, Map Labels
+    else if (
+      name === "field" && (
+        t.includes("Filter Labels") ||
+        t.includes("Match Labels") ||
+        t.includes("To Patches") ||
+        t.includes("Map Labels")
+      )
+    ) {
+      w.options.values = _datasetInfo.label_fields.length > 0
+        ? _datasetInfo.label_fields
+        : ["(no label fields)"];
+    }
+    // General fields: Sort By, Count Values, Distinct, Bounds
+    else if (name === "field") {
+      w.options.values = _datasetInfo.fields.length > 0
+        ? _datasetInfo.fields
+        : ["(no fields)"];
+    }
+  }
+}
+
+/**
+ * Walk every node in the graph and refresh its combo widget values
+ * from the cached dataset info.
+ */
+export function updateAllComboWidgets(graph: LGraph): void {
+  const nodes = (graph as any)._nodes;
+  if (!nodes) return;
+  for (const node of nodes) {
+    populateNodeCombos(node);
+  }
+}
+
+/**
+ * Hook to auto-populate combos when a node is freshly added to the graph.
+ * Call this once after creating the LGraph instance.
+ */
+export function hookNodeAdded(graph: LGraph): void {
+  const prev = (graph as any).onNodeAdded;
+  (graph as any).onNodeAdded = function (node: any) {
+    populateNodeCombos(node);
+    if (prev) prev.call(this, node);
+  };
+}
+
 
 export function registerAllNodes(): void {
   if (registered) return;
@@ -87,6 +175,25 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Filter Labels", FO_FilterLabels as any);
 
+  class FO_MatchLabels extends LGraphNode {
+    static title = "Match Labels";
+    static desc = "Match samples containing labels that satisfy a condition";
+    constructor() {
+      super();
+      this.title = "Match Labels";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("text", "filter", "F('confidence') > 0.5", (v: string) => { this.properties.filter = v; });
+      this.addWidget("toggle", "bool", true, (v: boolean) => { this.properties.bool = v; });
+      this.properties = { field: "", filter: "F('confidence') > 0.5", bool: true };
+      this.size = [320, 130];
+      this.color = "#2A633A";
+      this.bgcolor = "#1E4A2B";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Match Labels", FO_MatchLabels as any);
+
   class FO_SortBy extends LGraphNode {
     static title = "Sort By";
     static desc = "Sort samples by a field";
@@ -105,6 +212,25 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Sort By", FO_SortBy as any);
 
+  class FO_SortBySimilarity extends LGraphNode {
+    static title = "Sort By Similarity";
+    static desc = "Sort samples by similarity to a reference (requires similarity index)";
+    constructor() {
+      super();
+      this.title = "Sort By Similarity";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
+      this.addWidget("number", "k", 25, (v: number) => { this.properties.k = v; }, { min: 1, max: 100000, step: 1 });
+      this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
+      this.properties = { brain_key: "similarity", k: 25, reverse: false };
+      this.size = [320, 120];
+      this.color = "#2A633A";
+      this.bgcolor = "#1E4A2B";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Sort By Similarity", FO_SortBySimilarity as any);
+
   class FO_Limit extends LGraphNode {
     static title = "Limit";
     static desc = "Limit number of samples";
@@ -121,24 +247,6 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Limit", FO_Limit as any);
-
-  class FO_Exists extends LGraphNode {
-    static title = "Exists";
-    static desc = "Filter samples where a field exists";
-    constructor() {
-      super();
-      this.title = "Exists";
-      this.addInput("view", "FO_VIEW");
-      this.addOutput("view", "FO_VIEW");
-      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
-      this.addWidget("toggle", "bool", true, (v: boolean) => { this.properties.bool = v; });
-      this.properties = { field: "", bool: true };
-      this.size = [260, 90];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
-    }
-  }
-  LiteGraph.registerNodeType("FiftyComfy/View Stages/Exists", FO_Exists as any);
 
   class FO_MatchTags extends LGraphNode {
     static title = "Match Tags";
@@ -192,39 +300,40 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Shuffle", FO_Shuffle as any);
 
-  class FO_SelectFields extends LGraphNode {
-    static title = "Select Fields";
-    static desc = "Select only specified fields (comma-separated)";
+  class FO_ToPatches extends LGraphNode {
+    static title = "To Patches";
+    static desc = "Create a patches view from a label list field";
     constructor() {
       super();
-      this.title = "Select Fields";
+      this.title = "To Patches";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
-      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
-      this.properties = { fields: "" };
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.properties = { field: "" };
       this.size = [280, 70];
       this.color = "#2A633A";
       this.bgcolor = "#1E4A2B";
     }
   }
-  LiteGraph.registerNodeType("FiftyComfy/View Stages/Select Fields", FO_SelectFields as any);
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/To Patches", FO_ToPatches as any);
 
-  class FO_ExcludeFields extends LGraphNode {
-    static title = "Exclude Fields";
-    static desc = "Exclude specified fields (comma-separated)";
+  class FO_MapLabels extends LGraphNode {
+    static title = "Map Labels";
+    static desc = "Remap label values using a mapping dict";
     constructor() {
       super();
-      this.title = "Exclude Fields";
+      this.title = "Map Labels";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
-      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
-      this.properties = { fields: "" };
-      this.size = [280, 70];
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("text", "map", '{"old_label": "new_label"}', (v: string) => { this.properties.map = v; });
+      this.properties = { field: "", map: '{"old_label": "new_label"}' };
+      this.size = [340, 100];
       this.color = "#2A633A";
       this.bgcolor = "#1E4A2B";
     }
   }
-  LiteGraph.registerNodeType("FiftyComfy/View Stages/Exclude Fields", FO_ExcludeFields as any);
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Map Labels", FO_MapLabels as any);
 
   // ─── Brain ────────────────────────────────────────────────────
 

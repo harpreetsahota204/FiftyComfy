@@ -77,17 +77,6 @@ class LimitHandler(NodeHandler):
         return input_view.limit(int(params["count"]))
 
 
-class ExistsHandler(NodeHandler):
-    node_type = "FiftyComfy/View Stages/Exists"
-    category = "view_stage"
-
-    def execute(self, input_view, params, ctx):
-        return input_view.exists(
-            params["field"],
-            bool=params.get("bool", True),
-        )
-
-
 class MatchTagsHandler(NodeHandler):
     node_type = "FiftyComfy/View Stages/Match Tags"
     category = "view_stage"
@@ -125,38 +114,89 @@ class ShuffleHandler(NodeHandler):
         return input_view.shuffle(seed=seed)
 
 
-class SelectFieldsHandler(NodeHandler):
-    node_type = "FiftyComfy/View Stages/Select Fields"
+class MatchLabelsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Match Labels"
     category = "view_stage"
 
     def execute(self, input_view, params, ctx):
-        fields = params.get("fields", "")
-        if isinstance(fields, str):
-            fields = [f.strip() for f in fields.split(",") if f.strip()]
-        return input_view.select_fields(fields)
+        kwargs = {}
+        field = params.get("field", "")
+        if field:
+            kwargs["fields"] = field
+        filter_expr = params.get("filter", "")
+        if filter_expr:
+            kwargs["filter"] = safe_eval(filter_expr)
+        kwargs["bool"] = params.get("bool", True)
+        return input_view.match_labels(**kwargs)
 
 
-class ExcludeFieldsHandler(NodeHandler):
-    node_type = "FiftyComfy/View Stages/Exclude Fields"
+class SortBySimilarityHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Sort By Similarity"
     category = "view_stage"
 
     def execute(self, input_view, params, ctx):
-        fields = params.get("fields", "")
-        if isinstance(fields, str):
-            fields = [f.strip() for f in fields.split(",") if f.strip()]
-        return input_view.exclude_fields(fields)
+        brain_key = params.get("brain_key", "similarity")
+        k = params.get("k")
+        if k is not None and k != "" and k != 0:
+            k = int(k)
+        else:
+            k = None
+        reverse = params.get("reverse", False)
+        return input_view.sort_by_similarity(
+            brain_key,
+            k=k,
+            reverse=reverse,
+        )
+
+
+class ToPatchesHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/To Patches"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No label field specified for To Patches")
+        return input_view.to_patches(field)
+
+
+class MapLabelsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Map Labels"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        import json
+
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No label field specified for Map Labels")
+
+        map_str = params.get("map", "{}")
+        try:
+            label_map = json.loads(map_str)
+        except Exception:
+            # Fall back to safe_eval for Python dict literals
+            label_map = safe_eval(map_str)
+
+        if not isinstance(label_map, dict):
+            raise ValueError(
+                f"Map must be a dict, got {type(label_map).__name__}"
+            )
+
+        return input_view.map_labels(field, label_map)
 
 
 # All handlers in this module
 HANDLERS = [
     MatchHandler(),
     FilterLabelsHandler(),
+    MatchLabelsHandler(),
     SortByHandler(),
+    SortBySimilarityHandler(),
     LimitHandler(),
-    ExistsHandler(),
     MatchTagsHandler(),
     TakeHandler(),
     ShuffleHandler(),
-    SelectFieldsHandler(),
-    ExcludeFieldsHandler(),
+    ToPatchesHandler(),
+    MapLabelsHandler(),
 ]

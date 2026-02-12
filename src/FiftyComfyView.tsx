@@ -12,7 +12,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
-import { registerAllNodes } from "./litegraph/registerNodes";
+import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded } from "./litegraph/registerNodes";
 
 const NS = "@harpreetsahota/FiftyComfy";
 const STORAGE_KEY = "fiftycomfy_workflows";
@@ -156,7 +156,24 @@ export default function FiftyComfyView() {
       output_on: "#4FC3F7",
     };
 
+    // Hook combo population for newly added nodes
+    hookNodeAdded(_graph);
+
     _graph.start();
+
+    // Fetch dataset info and populate combo widgets
+    executeOperator(`${NS}/get_dataset_info`, {})
+      .then((result: any) => {
+        if (result && result.result) {
+          const info = result.result;
+          setDatasetInfo(info);
+          if (_graph) updateAllComboWidgets(_graph);
+          console.log("[FiftyComfy] Dataset info loaded:", info.fields?.length, "fields,", info.label_fields?.length, "label fields");
+        }
+      })
+      .catch((e: any) => {
+        console.warn("[FiftyComfy] Could not fetch dataset info:", e);
+      });
 
     // Resize canvas to fill the container.
     // We set canvas dimensions directly AND call resize() to sync bgcanvas.
@@ -232,6 +249,8 @@ export default function FiftyComfyView() {
     const data = loadWorkflow(name);
     if (data) {
       _graph.configure(data);
+      // Re-populate combo widgets on all loaded nodes
+      updateAllComboWidgets(_graph);
       setStatus("Loaded: " + name);
     }
     setShowLoad(false);
