@@ -109,12 +109,14 @@ class GraphExecutor:
                     variant="error",
                 )
 
+        # ----- Dismiss the progress bar -----
+        yield ctx.ops.set_progress(progress=1, label="Complete")
+
         # ----- Apply the view to the App (this is the critical step!) -----
         if final_view is not None:
-            # This yield is what actually updates the Samples panel
             yield ctx.ops.set_view(view=final_view)
 
-        # Summary
+        # Summary notification
         completed = total - len(failed_nodes)
         if failed_nodes:
             yield ctx.ops.notify(

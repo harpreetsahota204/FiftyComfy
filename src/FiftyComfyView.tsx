@@ -1,25 +1,17 @@
 /**
  * FiftyComfyView — LiteGraph canvas panel component.
- *
- * Key fixes:
- * - Graph persists across remounts via module-level singleton
- * - Canvas fills entire panel (toolbar overlays top)
- * - Nodes use operation names, not editable
- * - "Run Workflow" button
  */
 
 import * as React from "react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { executeOperator } from "@fiftyone/operators";
+import { useOperatorExecutor, executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
 import { registerAllNodes } from "./litegraph/registerNodes";
-import { onEvent, type NodeStatusPayload, type ExecutionCompletePayload } from "./operators";
 
 const NS = "@harpreetsahota/FiftyComfy";
 
-// ─── Module-level singleton ────────────────────────────────────────
-// Persists the graph across React remounts (panel resize, etc.)
+// ─── Module-level singleton (survives React remounts) ──────────────
 let _graph: LGraph | null = null;
 let _lgCanvas: LGraphCanvas | null = null;
 let _initialized = false;
@@ -79,13 +71,17 @@ export default function FiftyComfyView() {
   const [showLoad, setShowLoad] = useState(false);
   const [saved, setSaved] = useState<{ id: string; name: string }[]>([]);
 
-  // ---- Init LiteGraph (singleton — survives remounts) ----
+  // useOperatorExecutor for operations that RETURN results
+  const saveOp = useOperatorExecutor(`${NS}/save_graph`);
+  const loadListOp = useOperatorExecutor(`${NS}/load_graphs`);
+  const loadOp = useOperatorExecutor(`${NS}/load_graph`);
+
+  // ---- Init LiteGraph (singleton) ----
   useEffect(() => {
     const el = canvasRef.current;
     const container = containerRef.current;
     if (!el || !container) return;
 
-    // Inject CSS once
     if (!_cssInjected) {
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
@@ -94,20 +90,16 @@ export default function FiftyComfyView() {
       _cssInjected = true;
     }
 
-    // Register node types once
     if (!_initialized) {
       registerAllNodes();
-      // Prevent node title editing
       (LiteGraph as any).allow_edit_node_title = false;
       _initialized = true;
     }
 
-    // Create graph only once
     if (!_graph) {
       _graph = new LGraph();
     }
 
-    // Always recreate the canvas binding (it's tied to the DOM element)
     _lgCanvas = new LGraphCanvas(el, _graph);
     _lgCanvas.render_shadows = false;
     _lgCanvas.max_zoom = 4;
@@ -115,13 +107,14 @@ export default function FiftyComfyView() {
     _lgCanvas.allow_searchbox = true;
     (_lgCanvas as any).show_searchbox_on_double_click = true;
     (_lgCanvas as any).background_image = undefined;
-    (_lgCanvas as any).clear_background_color = "#1a1a2e";
+    // Use a neutral dark grey that blends with the FiftyOne App
+    (_lgCanvas as any).clear_background_color = "#1e1e1e";
     _lgCanvas.render_curved_connections = true;
     (_lgCanvas as any).render_connection_arrows = false;
 
     _graph.start();
 
-    // Resize canvas to fill container
+    // Resize canvas to fill container completely
     const resize = () => {
       if (!el || !container) return;
       el.width = container.offsetWidth;
@@ -133,44 +126,13 @@ export default function FiftyComfyView() {
     const ro = new ResizeObserver(resize);
     ro.observe(container);
 
-    return () => {
-      ro.disconnect();
-      // DON'T destroy the graph on unmount — keep it alive
-    };
+    return () => { ro.disconnect(); };
   }, []);
 
-  // ---- Subscribe to execution events ----
-  useEffect(() => {
-    const u1 = onEvent("node_status", (p: NodeStatusPayload) => {
-      if (!_graph) return;
-      const n = _graph.getNodeById(p.node_id);
-      if (!n) return;
-      (n as any).boxcolor =
-        p.status === "running" ? "#FFA500" :
-        p.status === "complete" ? "#00FF00" :
-        p.status === "error" ? "#FF0000" :
-        p.status === "skipped" ? "#888" : null;
-      if (p.status === "complete" && p.result !== undefined) {
-        n.properties.result = p.result;
-      }
-      n.setDirtyCanvas(true, true);
-    });
-    const u2 = onEvent("execution_complete", (p: ExecutionCompletePayload) => {
-      setRunning(false);
-      if (p.failed && p.failed > 0) {
-        setStatus(`Done with ${p.failed} error(s)`);
-      } else {
-        setStatus(`Done — ${p.completed ?? 0} nodes executed`);
-      }
-    });
-    return () => { u1(); u2(); };
-  }, []);
-
-  // ---- Run Workflow ----
+  // ---- Run Workflow (fire-and-forget via executeOperator) ----
   const handleRun = useCallback(async () => {
     if (!_graph) return;
 
-    // Reset node colors
     for (const n of (_graph as any)._nodes || []) {
       n.boxcolor = null;
       n.setDirtyCanvas(true, true);
@@ -181,60 +143,56 @@ export default function FiftyComfyView() {
 
     try {
       const serialized = _graph.serialize();
-      // Use executeOperator for fire-and-forget execution
       await executeOperator(`${NS}/execute_graph`, {
         graph_json: JSON.stringify(serialized),
       });
     } catch (e: any) {
       console.error("[FiftyComfy] Execution error:", e);
     }
-    // Status updates come via the event bus from TS operators
-    // Set a fallback timeout in case events don't arrive
-    setTimeout(() => {
-      setRunning((prev) => {
-        if (prev) {
-          setStatus("Done");
-          return false;
-        }
-        return prev;
-      });
-    }, 30000);
+    // The operator is a generator — set_progress/notify calls happen server-side.
+    // Once executeOperator resolves, execution is done.
+    setRunning(false);
+    setStatus("Done");
   }, []);
 
-  // ---- Save ----
+  // ---- Save (needs result confirmation) ----
   const handleSave = useCallback(async () => {
     if (!_graph) return;
     const name = prompt("Workflow name:");
     if (!name) return;
     try {
-      await executeOperator(`${NS}/save_graph`, {
+      await saveOp.execute({
         name,
         graph_json: JSON.stringify(_graph.serialize()),
       });
       setStatus("Saved: " + name);
-    } catch (e: any) { console.error(e); }
-  }, []);
+    } catch (e: any) { console.error("[FiftyComfy] Save error:", e); }
+  }, [saveOp]);
 
-  // ---- Load list ----
+  // ---- Load list (needs results) ----
   const handleLoadList = useCallback(async () => {
     try {
-      const result = await executeOperator(`${NS}/load_graphs`, {});
-      const graphs = (result as any)?.result?.graphs || [];
+      const result = await loadListOp.execute({});
+      // The result from useOperatorExecutor is the operator's return value
+      const graphs = (result as any)?.graphs || [];
       setSaved(graphs);
       setShowLoad(true);
-    } catch (e: any) { console.error(e); }
-  }, []);
+    } catch (e: any) { console.error("[FiftyComfy] Load list error:", e); }
+  }, [loadListOp]);
 
-  // ---- Load specific graph ----
+  // ---- Load specific graph (needs results) ----
   const handleLoad = useCallback(async (id: string) => {
     if (!_graph) return;
     try {
-      const result = await executeOperator(`${NS}/load_graph`, { graph_id: id });
-      const data = (result as any)?.result?.data;
-      if (data?.graph) _graph.configure(data.graph);
-    } catch (e: any) { console.error(e); }
+      const result = await loadOp.execute({ graph_id: id });
+      const graphData = (result as any)?.data?.graph;
+      if (graphData) {
+        _graph.configure(graphData);
+        setStatus("Loaded workflow");
+      }
+    } catch (e: any) { console.error("[FiftyComfy] Load error:", e); }
     setShowLoad(false);
-  }, []);
+  }, [loadOp]);
 
   // ---- Clear ----
   const handleClear = useCallback(() => {
@@ -245,14 +203,20 @@ export default function FiftyComfyView() {
   // ---- Render ----
   return React.createElement("div", {
     ref: containerRef,
-    style: { width: "100%", height: "100%", position: "relative", overflow: "hidden" },
+    style: {
+      width: "100%",
+      height: "100%",
+      position: "relative",
+      overflow: "hidden",
+      background: "#1e1e1e",
+    },
   },
-    // Canvas fills ENTIRE container
+    // Canvas fills ENTIRE container — no offset, no margin
     React.createElement("canvas", {
       ref: canvasRef,
       style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
     }),
-    // Toolbar overlays top of canvas
+    // Toolbar overlays top
     React.createElement("div", { style: toolbarCss },
       React.createElement("button", {
         style: btnRunCss,
