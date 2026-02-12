@@ -162,7 +162,14 @@ export default function FiftyComfyView() {
 
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
-      style.textContent = litegraphCss + `\n/* FiftyComfy font override */\n.litegraph, .litegraph canvas { font-family: 'Palanquin', sans-serif !important; }`;
+      // Scope font override to the FiftyComfy container only
+      style.textContent = litegraphCss + `
+/* FiftyComfy font override — scoped to panel container */
+#fiftycomfy-container,
+#fiftycomfy-container * {
+  font-family: 'Palanquin', sans-serif;
+}
+`;
       document.head.appendChild(style);
       _cssInjected = true;
     }
@@ -320,6 +327,7 @@ export default function FiftyComfyView() {
 
   // ---- Render ----
   return React.createElement("div", {
+    id: "fiftycomfy-container",
     ref: containerRef,
     style: {
       width: "100%",
