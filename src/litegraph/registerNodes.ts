@@ -806,8 +806,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.properties = {};
       this.size = [220, 50];
-      this.color = "#FFED63";
-      this.bgcolor = "#998E3B";
+      this.color = "#998E3B";
+      this.bgcolor = "#FFED63";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Set App View", FO_SetAppView as any);
@@ -824,8 +824,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "overwrite", false, (v: boolean) => { this.properties.overwrite = v; });
       this.properties = { name: "my_view", description: "", overwrite: false };
       this.size = [300, 120];
-      this.color = "#FFED63";
-      this.bgcolor = "#998E3B";
+      this.color = "#998E3B";
+      this.bgcolor = "#FFED63";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Save View", FO_SaveView as any);
