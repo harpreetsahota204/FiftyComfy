@@ -67,7 +67,7 @@ const toolbarCss: React.CSSProperties = {
   background: "rgba(20,20,20,0.85)",
   backdropFilter: "blur(4px)",
   borderBottom: "1px solid rgba(255,255,255,0.08)",
-  fontFamily: "'Inter','Segoe UI',sans-serif",
+  fontFamily: "'Palanquin','Inter','Segoe UI',sans-serif",
 };
 
 const btnCss: React.CSSProperties = {
@@ -152,11 +152,17 @@ export default function FiftyComfyView() {
     const container = containerRef.current;
     if (!el || !container) return;
 
-    // Inject LiteGraph CSS once
+    // Inject LiteGraph CSS + Palanquin font once
     if (!_cssInjected) {
+      // Load Palanquin from Google Fonts
+      const fontLink = document.createElement("link");
+      fontLink.rel = "stylesheet";
+      fontLink.href = "https://fonts.googleapis.com/css2?family=Palanquin:wght@300;400;500;600;700&display=swap";
+      document.head.appendChild(fontLink);
+
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
-      style.textContent = litegraphCss;
+      style.textContent = litegraphCss + `\n/* FiftyComfy font override */\n.litegraph, .litegraph canvas { font-family: 'Palanquin', sans-serif !important; }`;
       document.head.appendChild(style);
       _cssInjected = true;
     }
@@ -165,6 +171,16 @@ export default function FiftyComfyView() {
     if (!_initialized) {
       registerAllNodes();
       (LiteGraph as any).allow_edit_node_title = false;
+
+      // White node title text
+      (LiteGraph as any).NODE_TEXT_COLOR = "#FFFFFF";
+      (LiteGraph as any).NODE_TITLE_COLOR = "#FFFFFF";
+      (LiteGraph as any).WIDGET_TEXT_COLOR = "#FFFFFF";
+
+      // Palanquin font for canvas rendering
+      (LiteGraph as any).NODE_TITLE_TEXT_FONT = "600 14px 'Palanquin', sans-serif";
+      (LiteGraph as any).NODE_SUBTEXT_FONT = "400 12px 'Palanquin', sans-serif";
+      (LiteGraph as any).NODE_DEFAULT_FONT = "400 12px 'Palanquin', sans-serif";
 
       // Bright connection line colors
       (LiteGraph as any).DEFAULT_LINK_COLOR = "#99ccff";

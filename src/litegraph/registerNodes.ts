@@ -179,10 +179,11 @@ export function registerAllNodes(): void {
       this.bgcolor = "#994A12";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const name = _datasetInfo.dataset_name;
       if (name) {
-        ctx.font = "bold 13px monospace";
-        ctx.fillStyle = "#4FC3F7";
+        ctx.font = "600 13px 'Palanquin', sans-serif";
+        ctx.fillStyle = "#FFFFFF";
         ctx.textAlign = "center";
         const maxW = this.size[0] - 20;
         let display = name;
@@ -212,10 +213,11 @@ export function registerAllNodes(): void {
       this.bgcolor = "#994A12";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const name = _datasetInfo.dataset_name;
       if (name) {
-        ctx.font = "11px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.font = "400 11px 'Palanquin', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.45)";
         ctx.textAlign = "left";
         const maxW = this.size[0] - 20;
         const prefix = "dataset: ";
@@ -268,11 +270,12 @@ export function registerAllNodes(): void {
       this.bgcolor = "#365F8E";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const field = this.properties.field;
       const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
       if (classes.length > 0) {
-        ctx.font = "10px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
         ctx.fillText("classes: " + preview, 8, this.size[1] - 6);
@@ -298,11 +301,12 @@ export function registerAllNodes(): void {
       this.bgcolor = "#365F8E";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const field = this.properties.field;
       const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
       if (classes.length > 0) {
-        ctx.font = "10px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
         ctx.fillText("classes: " + preview, 8, this.size[1] - 6);
@@ -654,14 +658,15 @@ export function registerAllNodes(): void {
       this.bgcolor = "#6E5299";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const action = this.properties.action || "delete";
       const key = this.properties.brain_key || "";
       if (key) {
-        ctx.font = "10px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const label = action === "rename"
-          ? `will rename "${key}" → "${this.properties.new_name || "?"}"`
+          ? `will rename "${key}" \u2192 "${this.properties.new_name || "?"}"`
           : `will delete "${key}"`;
         const maxW = this.size[0] - 16;
         let display = label;
@@ -755,11 +760,12 @@ export function registerAllNodes(): void {
       this.bgcolor = "#3F6840";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
       const action = this.properties.action || "delete";
       const key = this.properties.eval_key || "";
       if (key) {
-        ctx.font = "10px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const label = action === "rename"
           ? `will rename "${key}" \u2192 "${this.properties.new_name || "?"}"`
