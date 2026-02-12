@@ -156,23 +156,36 @@ export default function FiftyComfyView() {
       output_on: "#4FC3F7",
     };
 
-    // Enable autoresize so LiteGraph auto-adapts on mouse events
-    (_lgCanvas as any).autoresize = true;
-
     _graph.start();
 
-    // FIX: Let _lgCanvas.resize() handle BOTH canvas and bgcanvas.
-    // Do NOT set el.width/el.height manually — that causes resize()
-    // to short-circuit and skip bgcanvas, clipping connections.
-    const resize = () => {
-      if (!container || !_lgCanvas) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      (_lgCanvas as any).resize(w, h);
+    // Resize canvas to fill the container.
+    // We set canvas dimensions directly AND call resize() to sync bgcanvas.
+    // Using requestAnimationFrame ensures the container has been laid out.
+    const doResize = () => {
+      if (!container || !el || !_lgCanvas) return;
+      const w = container.offsetWidth || container.clientWidth;
+      const h = container.offsetHeight || container.clientHeight;
+      if (w === 0 || h === 0) return; // not laid out yet
+      // Set canvas element dimensions directly
+      el.width = w;
+      el.height = h;
+      // Also set bgcanvas via the internal reference
+      const bg = (_lgCanvas as any).bgcanvas;
+      if (bg) {
+        bg.width = w;
+        bg.height = h;
+      }
+      _lgCanvas.setDirty(true, true);
     };
-    resize();
 
-    const ro = new ResizeObserver(resize);
+    // Initial resize after layout
+    doResize();
+    // Retry after a frame in case container wasn't laid out yet
+    requestAnimationFrame(doResize);
+    // And once more after a short delay for good measure
+    setTimeout(doResize, 100);
+
+    const ro = new ResizeObserver(doResize);
     ro.observe(container);
 
     return () => { ro.disconnect(); };
