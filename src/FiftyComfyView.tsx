@@ -152,7 +152,7 @@ export default function FiftyComfyView() {
     const container = containerRef.current;
     if (!el || !container) return;
 
-    // Inject LiteGraph CSS + Palanquin font once
+    // Inject LiteGraph CSS (scoped to our container) + Palanquin font once
     if (!_cssInjected) {
       // Load Palanquin from Google Fonts
       const fontLink = document.createElement("link");
@@ -160,16 +160,16 @@ export default function FiftyComfyView() {
       fontLink.href = "https://fonts.googleapis.com/css2?family=Palanquin:wght@300;400;500;600;700&display=swap";
       document.head.appendChild(fontLink);
 
+      // Scope ALL litegraph CSS rules to #fiftycomfy-container so they
+      // don't leak into the rest of the FiftyOne App.
+      const scopedCss = litegraphCss.replace(
+        /\.litegraph/g,
+        "#fiftycomfy-container .litegraph"
+      );
+
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
-      // Scope font override to the FiftyComfy container only
-      style.textContent = litegraphCss + `
-/* FiftyComfy font override — scoped to panel container */
-#fiftycomfy-container,
-#fiftycomfy-container * {
-  font-family: 'Palanquin', sans-serif;
-}
-`;
+      style.textContent = scopedCss;
       document.head.appendChild(style);
       _cssInjected = true;
     }
