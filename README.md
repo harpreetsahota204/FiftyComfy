@@ -7,13 +7,6 @@ A visual, node-based workflow editor for [FiftyOne](https://docs.voxel51.com) --
 ```bash
 fiftyone plugins download https://github.com/harpreetsahota204/FiftyComfy --overwrite
 ```
-
-### Requirements
-
-- FiftyOne >= 0.25
-- For brain methods: `fiftyone-brain` (installed with FiftyOne by default)
-- For UMAP visualization: `pip install umap-learn`
-
 ## Getting Started
 
 1. Launch the FiftyOne App with a dataset loaded:
