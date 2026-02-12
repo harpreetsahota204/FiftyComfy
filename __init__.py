@@ -179,74 +179,71 @@ class GetDatasetInfo(foo.Operator):
                 "label_classes": {},
             }
 
-        import fiftyone.core.labels as fol
+        def _get_fqn(field):
+            """Get the fully qualified name of a field's document_type."""
+            doc_type = getattr(field, "document_type", None)
+            if doc_type is None:
+                return None
+            return f"{doc_type.__module__}.{doc_type.__name__}"
 
-        # Types that support to_patches / filter_labels / match_labels
-        _LABEL_LIST_TYPES = (
-            fol.Detections,
-            fol.Polylines,
-            fol.Keypoints,
-        )
-        _LABEL_TYPES = (
-            fol.Classification,
-            fol.Classifications,
-            fol.Detections,
-            fol.Polylines,
-            fol.Keypoints,
-        )
+        # FQNs that support filter_labels / match_labels
+        _LABEL_FQNS = {
+            "fiftyone.core.labels.Classification",
+            "fiftyone.core.labels.Classifications",
+            "fiftyone.core.labels.Detections",
+            "fiftyone.core.labels.Polylines",
+            "fiftyone.core.labels.Keypoints",
+        }
+        # Subset that supports to_patches()
+        _PATCHES_FQNS = {
+            "fiftyone.core.labels.Detections",
+            "fiftyone.core.labels.Polylines",
+            "fiftyone.core.labels.Keypoints",
+        }
+        # Map FQN -> sub-field path for distinct label queries
+        _LABEL_PATH_MAP = {
+            "fiftyone.core.labels.Detections": "detections.label",
+            "fiftyone.core.labels.Polylines": "polylines.label",
+            "fiftyone.core.labels.Keypoints": "keypoints.label",
+            "fiftyone.core.labels.Classifications": "classifications.label",
+            "fiftyone.core.labels.Classification": "label",
+        }
 
         schema = ctx.dataset.get_field_schema()
         fields = list(schema.keys())
 
-        # Identify label fields by checking the document_type of
-        # EmbeddedDocumentFields against known FiftyOne label types
         label_fields = []
         patches_fields = []
         label_classes = {}
 
         for name, field in schema.items():
-            doc_type = getattr(field, "document_type", None)
-            if doc_type is None:
+            fqn = _get_fqn(field)
+            if fqn is None:
                 continue
 
-            if issubclass(doc_type, _LABEL_TYPES):
+            if fqn in _LABEL_FQNS:
                 label_fields.append(name)
 
-            if issubclass(doc_type, _LABEL_LIST_TYPES):
+            if fqn in _PATCHES_FQNS:
                 patches_fields.append(name)
 
-            # Collect distinct class labels for each label field
-            try:
-                if issubclass(doc_type, (fol.Detections,)):
-                    vals = ctx.dataset.distinct(
-                        f"{name}.detections.label"
-                    )
+            # Collect distinct class labels
+            sub_path = _LABEL_PATH_MAP.get(fqn)
+            if sub_path:
+                try:
+                    vals = ctx.dataset.distinct(f"{name}.{sub_path}")
                     if vals:
                         label_classes[name] = vals
-                elif issubclass(doc_type, (fol.Classifications,)):
-                    vals = ctx.dataset.distinct(
-                        f"{name}.classifications.label"
-                    )
-                    if vals:
-                        label_classes[name] = vals
-                elif issubclass(doc_type, (fol.Polylines,)):
-                    vals = ctx.dataset.distinct(
-                        f"{name}.polylines.label"
-                    )
-                    if vals:
-                        label_classes[name] = vals
-                elif issubclass(doc_type, (fol.Keypoints,)):
-                    vals = ctx.dataset.distinct(
-                        f"{name}.keypoints.label"
-                    )
-                    if vals:
-                        label_classes[name] = vals
-                elif issubclass(doc_type, (fol.Classification,)):
-                    vals = ctx.dataset.distinct(f"{name}.label")
-                    if vals:
-                        label_classes[name] = vals
-            except Exception:
-                pass
+                except Exception:
+                    pass
+
+        logger.info(
+            f"[FiftyComfy] Dataset '{ctx.dataset.name}': "
+            f"{len(fields)} fields, "
+            f"label_fields={label_fields}, "
+            f"patches_fields={patches_fields}, "
+            f"label_classes keys={list(label_classes.keys())}"
+        )
 
         try:
             saved_views = ctx.dataset.list_saved_views()
