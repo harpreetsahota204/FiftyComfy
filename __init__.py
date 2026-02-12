@@ -170,7 +170,13 @@ class GetDatasetInfo(foo.Operator):
 
     def execute(self, ctx):
         if not ctx.dataset:
-            return {"fields": [], "label_fields": [], "saved_views": [], "tags": []}
+            return {
+                "dataset_name": "",
+                "fields": [],
+                "label_fields": [],
+                "saved_views": [],
+                "tags": [],
+            }
 
         schema = ctx.dataset.get_field_schema()
         fields = list(schema.keys())
@@ -187,6 +193,7 @@ class GetDatasetInfo(foo.Operator):
             tags = []
 
         return {
+            "dataset_name": ctx.dataset.name,
             "fields": fields,
             "label_fields": label_fields,
             "saved_views": saved_views,

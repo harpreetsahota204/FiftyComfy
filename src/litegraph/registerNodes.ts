@@ -11,6 +11,7 @@ let registered = false;
 
 // ─── Dataset info cache (populated from Python via FiftyComfyView) ──
 interface DatasetInfo {
+  dataset_name: string;
   fields: string[];
   label_fields: string[];
   saved_views: string[];
@@ -18,6 +19,7 @@ interface DatasetInfo {
 }
 
 let _datasetInfo: DatasetInfo = {
+  dataset_name: "",
   fields: [],
   label_fields: [],
   saved_views: [],
@@ -110,9 +112,18 @@ export function registerAllNodes(): void {
       this.title = "Current Dataset";
       this.addOutput("view", "FO_VIEW");
       this.properties = {};
-      this.size = [220, 50];
+      this.size = [240, 60];
       this.color = "#1B4F72";
       this.bgcolor = "#154360";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const name = _datasetInfo.dataset_name;
+      if (name) {
+        ctx.font = "bold 13px monospace";
+        ctx.fillStyle = "#4FC3F7";
+        ctx.textAlign = "center";
+        ctx.fillText(name, this.size[0] / 2, this.size[1] - 12);
+      }
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Source/Current Dataset", FO_LoadDataset as any);
@@ -128,9 +139,18 @@ export function registerAllNodes(): void {
         this.properties.view_name = v;
       }, { values: [] as string[] });
       this.properties = { view_name: "" };
-      this.size = [280, 70];
+      this.size = [280, 80];
       this.color = "#1B4F72";
       this.bgcolor = "#154360";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const name = _datasetInfo.dataset_name;
+      if (name) {
+        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.textAlign = "left";
+        ctx.fillText("dataset: " + name, 10, this.size[1] - 8);
+      }
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Source/Load Saved View", FO_LoadSavedView as any);
@@ -368,8 +388,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "brain_key", "visualization", (v: string) => { this.properties.brain_key = v; });
       this.addWidget("combo", "method", "umap", (v: string) => { this.properties.method = v; }, { values: ["umap", "tsne", "pca"] });
       this.addWidget("combo", "num_dims", "2", (v: string) => { this.properties.num_dims = parseInt(v); }, { values: ["2", "3"] });
-      this.addWidget("text", "embeddings", "", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "" };
+      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
+      this.properties = { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "embeddings" };
       this.size = [340, 150];
       this.color = "#5B2C6F";
       this.bgcolor = "#4A235A";
@@ -387,8 +407,8 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
       this.addWidget("combo", "backend", "sklearn", (v: string) => { this.properties.backend = v; }, { values: ["sklearn", "qdrant", "pinecone", "milvus", "lancedb"] });
-      this.addWidget("text", "embeddings", "", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { brain_key: "similarity", backend: "sklearn", embeddings: "" };
+      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
+      this.properties = { brain_key: "similarity", backend: "sklearn", embeddings: "embeddings" };
       this.size = [340, 130];
       this.color = "#5B2C6F";
       this.bgcolor = "#4A235A";
@@ -405,8 +425,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "uniqueness_field", "uniqueness", (v: string) => { this.properties.uniqueness_field = v; });
-      this.addWidget("text", "embeddings", "", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { uniqueness_field: "uniqueness", embeddings: "" };
+      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
+      this.properties = { uniqueness_field: "uniqueness", embeddings: "embeddings" };
       this.size = [320, 100];
       this.color = "#5B2C6F";
       this.bgcolor = "#4A235A";
@@ -439,8 +459,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "threshold", 0.1, (v: number) => { this.properties.threshold = v; }, { min: 0.001, max: 1.0, step: 0.01, precision: 3 });
-      this.addWidget("text", "embeddings", "", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { threshold: 0.1, embeddings: "" };
+      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
+      this.properties = { threshold: 0.1, embeddings: "embeddings" };
       this.size = [320, 100];
       this.color = "#5B2C6F";
       this.bgcolor = "#4A235A";
