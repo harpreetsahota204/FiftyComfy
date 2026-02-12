@@ -182,7 +182,7 @@ export function registerAllNodes(): void {
       if ((this.flags as any)?.collapsed) return;
       const name = _datasetInfo.dataset_name;
       if (name) {
-        ctx.font = "600 13px 'Palanquin', sans-serif";
+        ctx.font = "bold 13px monospace";
         ctx.fillStyle = "#FFFFFF";
         ctx.textAlign = "center";
         const maxW = this.size[0] - 20;
@@ -216,7 +216,7 @@ export function registerAllNodes(): void {
       if ((this.flags as any)?.collapsed) return;
       const name = _datasetInfo.dataset_name;
       if (name) {
-        ctx.font = "400 11px 'Palanquin', sans-serif";
+        ctx.font = "11px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.45)";
         ctx.textAlign = "left";
         const maxW = this.size[0] - 20;
@@ -274,7 +274,7 @@ export function registerAllNodes(): void {
       const field = this.properties.field;
       const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
       if (classes.length > 0) {
-        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.font = "10px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
@@ -305,7 +305,7 @@ export function registerAllNodes(): void {
       const field = this.properties.field;
       const classes = field ? (_datasetInfo.label_classes[field] || []) : [];
       if (classes.length > 0) {
-        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.font = "10px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const preview = classes.slice(0, 6).join(", ") + (classes.length > 6 ? ", ..." : "");
@@ -662,7 +662,7 @@ export function registerAllNodes(): void {
       const action = this.properties.action || "delete";
       const key = this.properties.brain_key || "";
       if (key) {
-        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.font = "10px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const label = action === "rename"
@@ -764,7 +764,7 @@ export function registerAllNodes(): void {
       const action = this.properties.action || "delete";
       const key = this.properties.eval_key || "";
       if (key) {
-        ctx.font = "400 10px 'Palanquin', sans-serif";
+        ctx.font = "10px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.textAlign = "left";
         const label = action === "rename"

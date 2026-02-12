@@ -67,7 +67,7 @@ const toolbarCss: React.CSSProperties = {
   background: "rgba(20,20,20,0.85)",
   backdropFilter: "blur(4px)",
   borderBottom: "1px solid rgba(255,255,255,0.08)",
-  fontFamily: "'Palanquin','Inter','Segoe UI',sans-serif",
+  fontFamily: "'Inter','Segoe UI',sans-serif",
 };
 
 const btnCss: React.CSSProperties = {
@@ -152,24 +152,11 @@ export default function FiftyComfyView() {
     const container = containerRef.current;
     if (!el || !container) return;
 
-    // Inject LiteGraph CSS (scoped to our container) + Palanquin font once
+    // Inject LiteGraph CSS once
     if (!_cssInjected) {
-      // Load Palanquin from Google Fonts
-      const fontLink = document.createElement("link");
-      fontLink.rel = "stylesheet";
-      fontLink.href = "https://fonts.googleapis.com/css2?family=Palanquin:wght@300;400;500;600;700&display=swap";
-      document.head.appendChild(fontLink);
-
-      // Scope ALL litegraph CSS rules to #fiftycomfy-container so they
-      // don't leak into the rest of the FiftyOne App.
-      const scopedCss = litegraphCss.replace(
-        /\.litegraph/g,
-        "#fiftycomfy-container .litegraph"
-      );
-
       const style = document.createElement("style");
       style.id = "fiftycomfy-lg-css";
-      style.textContent = scopedCss;
+      style.textContent = litegraphCss;
       document.head.appendChild(style);
       _cssInjected = true;
     }
@@ -183,11 +170,6 @@ export default function FiftyComfyView() {
       (LiteGraph as any).NODE_TEXT_COLOR = "#FFFFFF";
       (LiteGraph as any).NODE_TITLE_COLOR = "#FFFFFF";
       (LiteGraph as any).WIDGET_TEXT_COLOR = "#FFFFFF";
-
-      // Palanquin font for canvas rendering
-      (LiteGraph as any).NODE_TITLE_TEXT_FONT = "600 14px 'Palanquin', sans-serif";
-      (LiteGraph as any).NODE_SUBTEXT_FONT = "400 12px 'Palanquin', sans-serif";
-      (LiteGraph as any).NODE_DEFAULT_FONT = "400 12px 'Palanquin', sans-serif";
 
       // Bright connection line colors
       (LiteGraph as any).DEFAULT_LINK_COLOR = "#99ccff";
@@ -327,7 +309,6 @@ export default function FiftyComfyView() {
 
   // ---- Render ----
   return React.createElement("div", {
-    id: "fiftycomfy-container",
     ref: containerRef,
     style: {
       width: "100%",
