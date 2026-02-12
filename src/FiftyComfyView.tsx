@@ -144,12 +144,7 @@ export default function FiftyComfyView() {
     _lgCanvas.allow_searchbox = true;
     (_lgCanvas as any).show_searchbox_on_double_click = true;
 
-    // Disable LiteGraph's own background painting entirely.
-    // The container div already has background: #1e1e1e.
-    // This prevents the blue/grey rectangle outline artifact.
-    (_lgCanvas as any).background_image = "";
-    (_lgCanvas as any).clear_background = false;
-    (_lgCanvas as any).clear_background_color = null;
+    // Use LiteGraph's default background (grid pattern, works at all zoom levels)
 
     _lgCanvas.render_curved_connections = true;
     (_lgCanvas as any).render_connection_arrows = false;
@@ -243,7 +238,6 @@ export default function FiftyComfyView() {
       height: "100%",
       position: "relative",
       overflow: "hidden",
-      background: "#1e1e1e",
     },
   },
     React.createElement("canvas", {
