@@ -1,6 +1,8 @@
 """Brain node handlers — FiftyOne Brain computations.
 
-Cross-referenced against: https://docs.voxel51.com/brain.html
+Cross-referenced against actual API signatures:
+- https://docs.voxel51.com/brain.html
+- fiftyone.brain.__init__.py function signatures
 """
 
 import logging
@@ -12,7 +14,8 @@ logger = logging.getLogger(__name__)
 class ComputeEmbeddingsHandler(NodeHandler):
     """Compute embeddings using a zoo model.
 
-    compute_embeddings() is a method on the dataset/view, NOT on fiftyone.brain.
+    API: view.compute_embeddings(model, embeddings_field=...)
+    This is a method on the dataset/view, NOT on fiftyone.brain.
     Ref: https://docs.voxel51.com/brain.html#embedding-methods
     """
 
@@ -33,6 +36,11 @@ class ComputeEmbeddingsHandler(NodeHandler):
 class ComputeVisualizationHandler(NodeHandler):
     """Compute UMAP/t-SNE/PCA embedding visualization.
 
+    API: fob.compute_visualization(
+        samples, embeddings=None, brain_key=None,
+        model=None, method="umap", num_dims=2, ...
+    )
+    - embeddings: a field name (str), numpy array, or None
     Ref: https://docs.voxel51.com/brain.html#visualizing-embeddings
     """
 
@@ -47,9 +55,11 @@ class ComputeVisualizationHandler(NodeHandler):
             "method": params.get("method", "umap"),
             "num_dims": int(params.get("num_dims", 2)),
         }
+        # embeddings: pass the field name so fob uses pre-computed embeddings
         embeddings = params.get("embeddings", "")
         if embeddings:
             kwargs["embeddings"] = embeddings
+
         fob.compute_visualization(input_view, **kwargs)
         return input_view
 
@@ -57,6 +67,12 @@ class ComputeVisualizationHandler(NodeHandler):
 class ComputeSimilarityHandler(NodeHandler):
     """Create a similarity index for nearest-neighbor queries.
 
+    API: fob.compute_similarity(
+        samples, patches_field=None, roi_field=None,
+        embeddings=None, brain_key=None, model=None,
+        backend=None, ...
+    )
+    - embeddings: a field name (str), numpy array, or None
     Ref: https://docs.voxel51.com/brain.html#similarity
     """
 
@@ -67,10 +83,16 @@ class ComputeSimilarityHandler(NodeHandler):
         import fiftyone.brain as fob
 
         kwargs = {"brain_key": params.get("brain_key", "similarity")}
-        if params.get("embeddings"):
-            kwargs["embeddings"] = params["embeddings"]
-        if params.get("backend"):
-            kwargs["backend"] = params["backend"]
+
+        # embeddings: field name string for pre-computed embeddings
+        embeddings = params.get("embeddings", "")
+        if embeddings:
+            kwargs["embeddings"] = embeddings
+
+        backend = params.get("backend", "")
+        if backend:
+            kwargs["backend"] = backend
+
         fob.compute_similarity(input_view, **kwargs)
         return input_view
 
@@ -78,6 +100,11 @@ class ComputeSimilarityHandler(NodeHandler):
 class ComputeUniquenessHandler(NodeHandler):
     """Compute a uniqueness score for each sample.
 
+    API: fob.compute_uniqueness(
+        samples, uniqueness_field="uniqueness",
+        roi_field=None, embeddings=None, model=None, ...
+    )
+    - embeddings: a field name (str), numpy array, or None
     Ref: https://docs.voxel51.com/brain.html#image-uniqueness
     """
 
@@ -88,10 +115,14 @@ class ComputeUniquenessHandler(NodeHandler):
         import fiftyone.brain as fob
 
         kwargs = {
-            "uniqueness_field": params.get("uniqueness_field", "uniqueness")
+            "uniqueness_field": params.get("uniqueness_field", "uniqueness"),
         }
-        if params.get("embeddings"):
-            kwargs["embeddings"] = params["embeddings"]
+
+        # embeddings: field name string for pre-computed embeddings
+        embeddings = params.get("embeddings", "")
+        if embeddings:
+            kwargs["embeddings"] = embeddings
+
         fob.compute_uniqueness(input_view, **kwargs)
         return input_view
 
@@ -99,6 +130,14 @@ class ComputeUniquenessHandler(NodeHandler):
 class ComputeRepresentativenessHandler(NodeHandler):
     """Score how representative each sample is of its neighborhood.
 
+    API: fob.compute_representativeness(
+        samples, representativeness_field="representativeness",
+        method=None, roi_field=None, embeddings=None,
+        model=None, ...
+    )
+    - embeddings: a field name (str), numpy array, or None
+    Note: the Config stores it as `embeddings_field`, but the function
+          parameter is `embeddings`.
     Ref: https://docs.voxel51.com/brain.html#image-representativeness
     """
 
@@ -112,10 +151,17 @@ class ComputeRepresentativenessHandler(NodeHandler):
             "representativeness_field": params.get(
                 "representativeness_field", "representativeness"
             ),
-            "method": params.get("method", "cluster-center"),
         }
-        if params.get("embeddings"):
-            kwargs["embeddings"] = params["embeddings"]
+
+        method = params.get("method", "")
+        if method:
+            kwargs["method"] = method
+
+        # embeddings: field name string for pre-computed embeddings
+        embeddings = params.get("embeddings", "")
+        if embeddings:
+            kwargs["embeddings"] = embeddings
+
         fob.compute_representativeness(input_view, **kwargs)
         return input_view
 
@@ -123,7 +169,9 @@ class ComputeRepresentativenessHandler(NodeHandler):
 class ComputeMistakennessHandler(NodeHandler):
     """Estimate likelihood of annotation mistakes.
 
-    API: fob.compute_mistakenness(samples, pred_field, label_field="ground_truth")
+    API: fob.compute_mistakenness(
+        samples, pred_field, label_field="ground_truth", ...
+    )
     - pred_field: the predictions field (positional)
     - label_field: the ground truth field (keyword)
     Ref: https://docs.voxel51.com/brain.html#label-mistakes
@@ -153,7 +201,7 @@ class ComputeMistakennessHandler(NodeHandler):
 class ComputeHardnessHandler(NodeHandler):
     """Compute sample hardness (how difficult to classify).
 
-    API: fob.compute_hardness(samples, label_field)
+    API: fob.compute_hardness(samples, label_field, ...)
     - label_field: the predictions field containing logits
     Ref: https://docs.voxel51.com/brain.html#sample-hardness
     """
@@ -175,6 +223,7 @@ class ComputeHardnessHandler(NodeHandler):
 class ComputeExactDuplicatesHandler(NodeHandler):
     """Find samples with identical media files.
 
+    API: fob.compute_exact_duplicates(samples)
     Ref: https://docs.voxel51.com/brain.html#exact-duplicates
     """
 
@@ -191,7 +240,11 @@ class ComputeExactDuplicatesHandler(NodeHandler):
 class ComputeNearDuplicatesHandler(NodeHandler):
     """Find near-duplicate samples using embeddings.
 
-    API: fob.compute_near_duplicates(samples, thresh=..., embeddings=...)
+    API: fob.compute_near_duplicates(
+        samples, thresh=None, embeddings=None, model=None, ...
+    )
+    - thresh: distance threshold (NOT "threshold")
+    - embeddings: a field name (str), numpy array, or None
     Ref: https://docs.voxel51.com/brain.html#near-duplicates
     """
 
@@ -202,10 +255,16 @@ class ComputeNearDuplicatesHandler(NodeHandler):
         import fiftyone.brain as fob
 
         kwargs = {}
-        if params.get("threshold"):
-            kwargs["thresh"] = float(params["threshold"])
-        if params.get("embeddings"):
-            kwargs["embeddings"] = params["embeddings"]
+
+        threshold = params.get("threshold")
+        if threshold is not None and threshold != "" and threshold != 0:
+            kwargs["thresh"] = float(threshold)
+
+        # embeddings: field name string for pre-computed embeddings
+        embeddings = params.get("embeddings", "")
+        if embeddings:
+            kwargs["embeddings"] = embeddings
+
         fob.compute_near_duplicates(input_view, **kwargs)
         return input_view
 
@@ -213,7 +272,13 @@ class ComputeNearDuplicatesHandler(NodeHandler):
 class ComputeLeakySplitsHandler(NodeHandler):
     """Find data leaks across train/test/val splits.
 
-    API: fob.compute_leaky_splits(samples, splits=...)
+    API: fob.compute_leaky_splits(
+        samples, splits, threshold=None, roi_field=None,
+        embeddings=None, similarity_index=None, model=None, ...
+    )
+    - splits: list of tag strings, a field name, or dict of views
+    - threshold: distance threshold for leak detection
+    - embeddings: a field name (str), numpy array, or None
     Ref: https://docs.voxel51.com/brain.html#leaky-splits
     """
 
@@ -226,9 +291,13 @@ class ComputeLeakySplitsHandler(NodeHandler):
         splits = params.get("splits", "train,test")
         if isinstance(splits, str):
             splits = [s.strip() for s in splits.split(",") if s.strip()]
+
         kwargs = {"splits": splits}
-        if params.get("threshold"):
-            kwargs["threshold"] = float(params["threshold"])
+
+        threshold = params.get("threshold")
+        if threshold is not None and threshold != "" and threshold != 0:
+            kwargs["threshold"] = float(threshold)
+
         fob.compute_leaky_splits(input_view, **kwargs)
         return input_view
 
@@ -236,6 +305,10 @@ class ComputeLeakySplitsHandler(NodeHandler):
 class ManageBrainRunHandler(NodeHandler):
     """Rename or delete a brain run on the dataset.
 
+    API:
+        dataset.list_brain_runs()
+        dataset.rename_brain_run(old_key, new_key)
+        dataset.delete_brain_run(brain_key)
     Ref: https://docs.voxel51.com/brain.html#managing-brain-runs
     """
 

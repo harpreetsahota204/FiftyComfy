@@ -22,7 +22,7 @@ let _graph: LGraph | null = null;
 let _lgCanvas: LGraphCanvas | null = null;
 let _initialized = false;
 let _cssInjected = false;
-let _datasetInfoFetched = false;
+let _currentDatasetName: string = "";
 
 // ─── localStorage helpers for workflow persistence ─────────────────
 function getSavedWorkflows(): Record<string, any> {
@@ -96,9 +96,10 @@ const sepCss: React.CSSProperties = {
   margin: "0 2px",
 };
 
-// ─── Fetch dataset info (once per session) ─────────────────────────
+// ─── Fetch dataset info ─────────────────────────────────────────────
 // The Python operator pushes data to JS via ctx.trigger() -> dataset_info_loaded
 // JS operator -> event bus "dataset_info". We subscribe here.
+// Re-fetched on every mount so dataset switches are detected.
 
 let _datasetInfoListenerSet = false;
 
@@ -108,10 +109,20 @@ function setupDatasetInfoListener() {
 
   onEvent("dataset_info", (info: any) => {
     if (info && info.fields) {
+      const newName = info.dataset_name || "";
+
+      // Detect dataset switch: clear graph and reset
+      if (_currentDatasetName && newName && newName !== _currentDatasetName) {
+        console.log(`[FiftyComfy] Dataset changed: ${_currentDatasetName} -> ${newName}, clearing canvas`);
+        if (_graph) _graph.clear();
+      }
+
+      _currentDatasetName = newName;
       setDatasetInfo(info);
       if (_graph) updateAllComboWidgets(_graph);
       console.log(
         "[FiftyComfy] Dataset info received:",
+        newName + ",",
         info.fields?.length, "fields,",
         info.label_fields?.length, "label fields,",
         info.patches_fields?.length, "patches fields,",
@@ -122,17 +133,13 @@ function setupDatasetInfoListener() {
 }
 
 function fetchDatasetInfo() {
-  if (_datasetInfoFetched) return;
-  _datasetInfoFetched = true;
-
-  // Subscribe to the event bus first
+  // Subscribe to the event bus (once)
   setupDatasetInfoListener();
 
-  // Trigger the Python operator which will ctx.trigger() back to JS
+  // Always re-fetch — dataset may have changed since last mount
   executeOperator(`${NS}/get_dataset_info`, {})
     .catch((e: any) => {
       console.warn("[FiftyComfy] Could not fetch dataset info:", e);
-      _datasetInfoFetched = false; // allow retry on next mount
     });
 }
 
