@@ -18,6 +18,7 @@ interface DatasetInfo {
   saved_views: string[];
   tags: string[];
   label_classes: Record<string, string[]>;
+  brain_runs: string[];
 }
 
 let _datasetInfo: DatasetInfo = {
@@ -28,6 +29,7 @@ let _datasetInfo: DatasetInfo = {
   saved_views: [],
   tags: [],
   label_classes: {},
+  brain_runs: [],
 };
 
 /**
@@ -72,6 +74,21 @@ function populateNodeCombos(node: any): void {
       w.options.values = _datasetInfo.label_fields.length > 0
         ? _datasetInfo.label_fields
         : ["(no label fields)"];
+    }
+    // Brain nodes needing label fields: Mistakenness, Hardness
+    else if (
+      (name === "pred_field" || name === "label_field" || name === "predictions_field") &&
+      t.includes("Brain/")
+    ) {
+      w.options.values = _datasetInfo.label_fields.length > 0
+        ? _datasetInfo.label_fields
+        : ["(no label fields)"];
+    }
+    // Brain runs: Manage Brain Run node
+    else if (name === "brain_key" && t.includes("Manage Brain Run")) {
+      w.options.values = _datasetInfo.brain_runs.length > 0
+        ? _datasetInfo.brain_runs
+        : ["(no brain runs)"];
     }
     // General fields: Sort By and any other "field" combo
     else if (name === "field") {
@@ -142,7 +159,13 @@ export function registerAllNodes(): void {
         ctx.font = "bold 13px monospace";
         ctx.fillStyle = "#4FC3F7";
         ctx.textAlign = "center";
-        ctx.fillText(name, this.size[0] / 2, this.size[1] - 12);
+        const maxW = this.size[0] - 20;
+        let display = name;
+        while (ctx.measureText(display).width > maxW && display.length > 4) {
+          display = display.slice(0, -2);
+        }
+        if (display !== name) display += "\u2026";
+        ctx.fillText(display, this.size[0] / 2, this.size[1] - 12);
       }
     }
   }
@@ -169,7 +192,14 @@ export function registerAllNodes(): void {
         ctx.font = "11px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.35)";
         ctx.textAlign = "left";
-        ctx.fillText("dataset: " + name, 10, this.size[1] - 8);
+        const maxW = this.size[0] - 20;
+        const prefix = "dataset: ";
+        let display = prefix + name;
+        while (ctx.measureText(display).width > maxW && display.length > prefix.length + 4) {
+          display = prefix + name.slice(0, display.length - prefix.length - 2);
+        }
+        if (display !== prefix + name) display += "\u2026";
+        ctx.fillText(display, 10, this.size[1] - 8);
       }
     }
   }
@@ -283,7 +313,7 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
-      this.addWidget("number", "k", 25, (v: number) => { this.properties.k = v; }, { min: 1, max: 100000, step: 1 });
+      this.addWidget("number", "k", 25, (v: number) => { this.properties.k = v; }, { min: 1, max: 100000, step: 1, precision: 0 });
       this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
       this.properties = { brain_key: "similarity", k: 25, reverse: false };
       this.size = [320, 120];
@@ -301,7 +331,7 @@ export function registerAllNodes(): void {
       this.title = "Limit";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
-      this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10 });
+      this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10, precision: 0 });
       this.properties = { count: 100 };
       this.size = [220, 70];
       this.color = "#2A633A";
@@ -335,8 +365,8 @@ export function registerAllNodes(): void {
       this.title = "Take";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
-      this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10 });
-      this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1 });
+      this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10, precision: 0 });
+      this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1, precision: 0 });
       this.properties = { count: 100, seed: null };
       this.size = [240, 90];
       this.color = "#2A633A";
@@ -353,7 +383,7 @@ export function registerAllNodes(): void {
       this.title = "Shuffle";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
-      this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1 });
+      this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1, precision: 0 });
       this.properties = { seed: null };
       this.size = [220, 70];
       this.color = "#2A633A";
@@ -509,6 +539,116 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Find Near Duplicates", FO_FindNearDuplicates as any);
+
+  class FO_ComputeRepresentativeness extends LGraphNode {
+    static title = "Compute Representativeness";
+    static desc = "Score how representative each sample is of its neighborhood";
+    constructor() {
+      super();
+      this.title = "Compute Representativeness";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "representativeness_field", "representativeness", (v: string) => { this.properties.representativeness_field = v; });
+      this.addWidget("combo", "method", "cluster-center", (v: string) => { this.properties.method = v; }, { values: ["cluster-center", "cluster-center-downweight"] });
+      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
+      this.properties = { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" };
+      this.size = [360, 130];
+      this.color = "#5B2C6F";
+      this.bgcolor = "#4A235A";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Representativeness", FO_ComputeRepresentativeness as any);
+
+  class FO_ComputeMistakenness extends LGraphNode {
+    static title = "Compute Mistakenness";
+    static desc = "Estimate likelihood of annotation mistakes";
+    constructor() {
+      super();
+      this.title = "Compute Mistakenness";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
+      this.addWidget("combo", "label_field", "", (v: string) => { this.properties.label_field = v; }, { values: [] as string[] });
+      this.properties = { pred_field: "", label_field: "" };
+      this.size = [320, 100];
+      this.color = "#5B2C6F";
+      this.bgcolor = "#4A235A";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Mistakenness", FO_ComputeMistakenness as any);
+
+  class FO_ComputeHardness extends LGraphNode {
+    static title = "Compute Hardness";
+    static desc = "Compute sample hardness (how difficult to classify)";
+    constructor() {
+      super();
+      this.title = "Compute Hardness";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "predictions_field", "", (v: string) => { this.properties.predictions_field = v; }, { values: [] as string[] });
+      this.properties = { predictions_field: "" };
+      this.size = [320, 70];
+      this.color = "#5B2C6F";
+      this.bgcolor = "#4A235A";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Hardness", FO_ComputeHardness as any);
+
+  class FO_DetectLeakySplits extends LGraphNode {
+    static title = "Detect Leaky Splits";
+    static desc = "Find data leaks across train/test/val splits";
+    constructor() {
+      super();
+      this.title = "Detect Leaky Splits";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "splits", "train,test", (v: string) => { this.properties.splits = v; });
+      this.addWidget("number", "threshold", 0.1, (v: number) => { this.properties.threshold = v; }, { min: 0.001, max: 1.0, step: 0.01, precision: 3 });
+      this.properties = { splits: "train,test", threshold: 0.1 };
+      this.size = [320, 100];
+      this.color = "#5B2C6F";
+      this.bgcolor = "#4A235A";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Brain/Detect Leaky Splits", FO_DetectLeakySplits as any);
+
+  class FO_ManageBrainRun extends LGraphNode {
+    static title = "Manage Brain Run";
+    static desc = "Rename or delete a brain run on the dataset";
+    constructor() {
+      super();
+      this.title = "Manage Brain Run";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "brain_key", "", (v: string) => { this.properties.brain_key = v; }, { values: [] as string[] });
+      this.addWidget("combo", "action", "delete", (v: string) => { this.properties.action = v; }, { values: ["delete", "rename"] });
+      this.addWidget("text", "new_name", "", (v: string) => { this.properties.new_name = v; });
+      this.properties = { brain_key: "", action: "delete", new_name: "" };
+      this.size = [320, 130];
+      this.color = "#5B2C6F";
+      this.bgcolor = "#4A235A";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const action = this.properties.action || "delete";
+      const key = this.properties.brain_key || "";
+      if (key) {
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.textAlign = "left";
+        const label = action === "rename"
+          ? `will rename "${key}" → "${this.properties.new_name || "?"}"`
+          : `will delete "${key}"`;
+        const maxW = this.size[0] - 16;
+        let display = label;
+        while (ctx.measureText(display).width > maxW && display.length > 10) {
+          display = display.slice(0, -2);
+        }
+        if (display !== label) display += "\u2026";
+        ctx.fillText(display, 8, this.size[1] - 6);
+      }
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Brain/Manage Brain Run", FO_ManageBrainRun as any);
 
   // ─── Output ───────────────────────────────────────────────────
 

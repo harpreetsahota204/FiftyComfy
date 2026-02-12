@@ -233,6 +233,39 @@ class ComputeLeakySplitsHandler(NodeHandler):
         return input_view
 
 
+class ManageBrainRunHandler(NodeHandler):
+    """Rename or delete a brain run on the dataset.
+
+    Ref: https://docs.voxel51.com/brain.html#managing-brain-runs
+    """
+
+    node_type = "FiftyComfy/Brain/Manage Brain Run"
+    category = "brain"
+
+    def execute(self, input_view, params, ctx):
+        brain_key = params.get("brain_key", "")
+        action = params.get("action", "delete")
+        new_name = params.get("new_name", "")
+
+        if not brain_key:
+            raise ValueError("No brain run selected")
+
+        if action == "delete":
+            ctx.dataset.delete_brain_run(brain_key)
+            logger.info(f"[FiftyComfy] Deleted brain run: {brain_key}")
+        elif action == "rename":
+            if not new_name:
+                raise ValueError("No new name specified for rename")
+            ctx.dataset.rename_brain_run(brain_key, new_name)
+            logger.info(
+                f"[FiftyComfy] Renamed brain run: {brain_key} -> {new_name}"
+            )
+        else:
+            raise ValueError(f"Unknown action: {action}")
+
+        return input_view
+
+
 # All handlers in this module
 HANDLERS = [
     ComputeEmbeddingsHandler(),
@@ -245,4 +278,5 @@ HANDLERS = [
     ComputeExactDuplicatesHandler(),
     ComputeNearDuplicatesHandler(),
     ComputeLeakySplitsHandler(),
+    ManageBrainRunHandler(),
 ]

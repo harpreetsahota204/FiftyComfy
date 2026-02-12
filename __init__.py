@@ -261,6 +261,11 @@ class GetDatasetInfo(foo.Operator):
         except Exception:
             tags = []
 
+        try:
+            brain_runs = ctx.dataset.list_brain_runs()
+        except Exception:
+            brain_runs = []
+
         # Push dataset info to the JS side via ctx.trigger()
         # (executeOperator does NOT return Python results to JS callers)
         yield ctx.trigger(
@@ -273,6 +278,7 @@ class GetDatasetInfo(foo.Operator):
                 "saved_views": saved_views,
                 "tags": tags,
                 "label_classes": label_classes,
+                "brain_runs": brain_runs,
             },
         )
 
