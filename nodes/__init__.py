@@ -73,6 +73,8 @@ def get_node_registry() -> NodeRegistry:
     from .source import HANDLERS as source_handlers
     from .view_stages import HANDLERS as view_stage_handlers
     from .brain import HANDLERS as brain_handlers
+    from .model import HANDLERS as model_handlers
+    from .evaluation import HANDLERS as evaluation_handlers
     from .aggregations import HANDLERS as aggregation_handlers
     from .output import HANDLERS as output_handlers
 
@@ -80,6 +82,8 @@ def get_node_registry() -> NodeRegistry:
         source_handlers
         + view_stage_handlers
         + brain_handlers
+        + model_handlers
+        + evaluation_handlers
         + aggregation_handlers
         + output_handlers
     )

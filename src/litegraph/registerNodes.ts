@@ -19,6 +19,8 @@ interface DatasetInfo {
   tags: string[];
   label_classes: Record<string, string[]>;
   brain_runs: string[];
+  evaluations: string[];
+  zoo_models: string[];
 }
 
 let _datasetInfo: DatasetInfo = {
@@ -30,6 +32,8 @@ let _datasetInfo: DatasetInfo = {
   tags: [],
   label_classes: {},
   brain_runs: [],
+  evaluations: [],
+  zoo_models: [],
 };
 
 /**
@@ -83,6 +87,27 @@ function populateNodeCombos(node: any): void {
       w.options.values = _datasetInfo.label_fields.length > 0
         ? _datasetInfo.label_fields
         : ["(no label fields)"];
+    }
+    // Zoo model dropdown: Apply Zoo Model node
+    else if (name === "model" && t.includes("Model/")) {
+      w.options.values = _datasetInfo.zoo_models.length > 0
+        ? _datasetInfo.zoo_models
+        : ["(no models available)"];
+    }
+    // Evaluation pred/gt fields
+    else if (
+      (name === "pred_field" || name === "gt_field") &&
+      t.includes("Evaluation/")
+    ) {
+      w.options.values = _datasetInfo.label_fields.length > 0
+        ? _datasetInfo.label_fields
+        : ["(no label fields)"];
+    }
+    // Evaluation runs: Manage Evaluation node
+    else if (name === "eval_key" && t.includes("Manage Evaluation")) {
+      w.options.values = _datasetInfo.evaluations.length > 0
+        ? _datasetInfo.evaluations
+        : ["(no evaluations)"];
     }
     // Brain runs: Manage Brain Run node
     else if (name === "brain_key" && t.includes("Manage Brain Run")) {
@@ -150,8 +175,8 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.properties = {};
       this.size = [240, 60];
-      this.color = "#1B4F72";
-      this.bgcolor = "#154360";
+      this.color = "#FF7C1E";
+      this.bgcolor = "#994A12";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
       const name = _datasetInfo.dataset_name;
@@ -183,8 +208,8 @@ export function registerAllNodes(): void {
       }, { values: [] as string[] });
       this.properties = { view_name: "" };
       this.size = [280, 80];
-      this.color = "#1B4F72";
-      this.bgcolor = "#154360";
+      this.color = "#FF7C1E";
+      this.bgcolor = "#994A12";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
       const name = _datasetInfo.dataset_name;
@@ -220,8 +245,8 @@ export function registerAllNodes(): void {
       });
       this.properties = { expression: "F('confidence') > 0.5" };
       this.size = [320, 80];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Match", FO_Match as any);
@@ -239,8 +264,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "only_matches", true, (v: boolean) => { this.properties.only_matches = v; });
       this.properties = { field: "", expression: "F('label') == 'car'", only_matches: true };
       this.size = [320, 150];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
       const field = this.properties.field;
@@ -269,8 +294,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "bool", true, (v: boolean) => { this.properties.bool = v; });
       this.properties = { field: "", filter: "F('label') == 'car'", bool: true };
       this.size = [320, 150];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
       const field = this.properties.field;
@@ -298,8 +323,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
       this.properties = { field: "", reverse: false };
       this.size = [280, 90];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Sort By", FO_SortBy as any);
@@ -317,8 +342,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
       this.properties = { brain_key: "similarity", k: 25, reverse: false };
       this.size = [320, 120];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Sort By Similarity", FO_SortBySimilarity as any);
@@ -334,8 +359,8 @@ export function registerAllNodes(): void {
       this.addWidget("number", "count", 100, (v: number) => { this.properties.count = v; }, { min: 1, max: 100000, step: 10, precision: 0 });
       this.properties = { count: 100 };
       this.size = [220, 70];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Limit", FO_Limit as any);
@@ -351,8 +376,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "tags", "", (v: string) => { this.properties.tags = v; });
       this.properties = { tags: "" };
       this.size = [280, 70];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Match Tags", FO_MatchTags as any);
@@ -369,8 +394,8 @@ export function registerAllNodes(): void {
       this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1, precision: 0 });
       this.properties = { count: 100, seed: null };
       this.size = [240, 90];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Take", FO_Take as any);
@@ -386,8 +411,8 @@ export function registerAllNodes(): void {
       this.addWidget("number", "seed", 0, (v: number) => { this.properties.seed = v || null; }, { min: 0, max: 99999, step: 1, precision: 0 });
       this.properties = { seed: null };
       this.size = [220, 70];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Shuffle", FO_Shuffle as any);
@@ -403,8 +428,8 @@ export function registerAllNodes(): void {
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
       this.properties = { field: "" };
       this.size = [280, 70];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/To Patches", FO_ToPatches as any);
@@ -421,8 +446,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "map", '{"old_label": "new_label"}', (v: string) => { this.properties.map = v; });
       this.properties = { field: "", map: '{"old_label": "new_label"}' };
       this.size = [340, 100];
-      this.color = "#2A633A";
-      this.bgcolor = "#1E4A2B";
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Map Labels", FO_MapLabels as any);
@@ -443,8 +468,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings_field", "embeddings", (v: string) => { this.properties.embeddings_field = v; });
       this.properties = { model: "clip-vit-base32-torch", embeddings_field: "embeddings" };
       this.size = [340, 100];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Embeddings", FO_ComputeEmbeddings as any);
@@ -463,8 +488,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
       this.properties = { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "embeddings" };
       this.size = [340, 150];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Visualization", FO_ComputeVisualization as any);
@@ -482,8 +507,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
       this.properties = { brain_key: "similarity", backend: "sklearn", embeddings: "embeddings" };
       this.size = [340, 130];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Similarity", FO_ComputeSimilarity as any);
@@ -500,8 +525,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
       this.properties = { uniqueness_field: "uniqueness", embeddings: "embeddings" };
       this.size = [320, 100];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Uniqueness", FO_ComputeUniqueness as any);
@@ -516,8 +541,8 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.properties = {};
       this.size = [280, 50];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Find Exact Duplicates", FO_FindExactDuplicates as any);
@@ -534,8 +559,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
       this.properties = { threshold: 0.1, embeddings: "embeddings" };
       this.size = [320, 100];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Find Near Duplicates", FO_FindNearDuplicates as any);
@@ -553,8 +578,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
       this.properties = { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" };
       this.size = [360, 130];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Representativeness", FO_ComputeRepresentativeness as any);
@@ -571,8 +596,8 @@ export function registerAllNodes(): void {
       this.addWidget("combo", "label_field", "", (v: string) => { this.properties.label_field = v; }, { values: [] as string[] });
       this.properties = { pred_field: "", label_field: "" };
       this.size = [320, 100];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Mistakenness", FO_ComputeMistakenness as any);
@@ -588,8 +613,8 @@ export function registerAllNodes(): void {
       this.addWidget("combo", "predictions_field", "", (v: string) => { this.properties.predictions_field = v; }, { values: [] as string[] });
       this.properties = { predictions_field: "" };
       this.size = [320, 70];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Compute Hardness", FO_ComputeHardness as any);
@@ -606,8 +631,8 @@ export function registerAllNodes(): void {
       this.addWidget("number", "threshold", 0.1, (v: number) => { this.properties.threshold = v; }, { min: 0.001, max: 1.0, step: 0.01, precision: 3 });
       this.properties = { splits: "train,test", threshold: 0.1 };
       this.size = [320, 100];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Detect Leaky Splits", FO_DetectLeakySplits as any);
@@ -625,8 +650,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "new_name", "", (v: string) => { this.properties.new_name = v; });
       this.properties = { brain_key: "", action: "delete", new_name: "" };
       this.size = [320, 130];
-      this.color = "#5B2C6F";
-      this.bgcolor = "#4A235A";
+      this.color = "#BC8CFF";
+      this.bgcolor = "#6E5299";
     }
     onDrawForeground(ctx: CanvasRenderingContext2D) {
       const action = this.properties.action || "delete";
@@ -650,6 +675,107 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/Brain/Manage Brain Run", FO_ManageBrainRun as any);
 
+  // ─── Model ────────────────────────────────────────────────────
+
+  class FO_ApplyZooModel extends LGraphNode {
+    static title = "Apply Zoo Model";
+    static desc = "Apply a model from the FiftyOne Model Zoo";
+    constructor() {
+      super();
+      this.title = "Apply Zoo Model";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "model", "", (v: string) => { this.properties.model = v; }, { values: [] as string[] });
+      this.addWidget("text", "label_field", "predictions", (v: string) => { this.properties.label_field = v; });
+      this.addWidget("number", "confidence_thresh", 0, (v: number) => { this.properties.confidence_thresh = v; }, { min: 0, max: 1.0, step: 0.05, precision: 2 });
+      this.addWidget("toggle", "store_logits", false, (v: boolean) => { this.properties.store_logits = v; });
+      this.properties = { model: "", label_field: "predictions", confidence_thresh: 0, store_logits: false };
+      this.size = [360, 150];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Model/Apply Zoo Model", FO_ApplyZooModel as any);
+
+  // ─── Evaluation ───────────────────────────────────────────────
+
+  class FO_EvaluateDetections extends LGraphNode {
+    static title = "Evaluate Detections";
+    static desc = "Evaluate detection predictions against ground truth";
+    constructor() {
+      super();
+      this.title = "Evaluate Detections";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
+      this.addWidget("combo", "gt_field", "", (v: string) => { this.properties.gt_field = v; }, { values: [] as string[] });
+      this.addWidget("text", "eval_key", "eval", (v: string) => { this.properties.eval_key = v; });
+      this.addWidget("combo", "method", "coco", (v: string) => { this.properties.method = v; }, { values: ["coco", "open-images"] });
+      this.properties = { pred_field: "", gt_field: "", eval_key: "eval", method: "coco" };
+      this.size = [340, 150];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/Evaluate Detections", FO_EvaluateDetections as any);
+
+  class FO_EvaluateClassifications extends LGraphNode {
+    static title = "Evaluate Classifications";
+    static desc = "Evaluate classification predictions against ground truth";
+    constructor() {
+      super();
+      this.title = "Evaluate Classifications";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
+      this.addWidget("combo", "gt_field", "", (v: string) => { this.properties.gt_field = v; }, { values: [] as string[] });
+      this.addWidget("text", "eval_key", "eval", (v: string) => { this.properties.eval_key = v; });
+      this.properties = { pred_field: "", gt_field: "", eval_key: "eval" };
+      this.size = [340, 130];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/Evaluate Classifications", FO_EvaluateClassifications as any);
+
+  class FO_ManageEvaluation extends LGraphNode {
+    static title = "Manage Evaluation";
+    static desc = "Rename or delete an evaluation run on the dataset";
+    constructor() {
+      super();
+      this.title = "Manage Evaluation";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "eval_key", "", (v: string) => { this.properties.eval_key = v; }, { values: [] as string[] });
+      this.addWidget("combo", "action", "delete", (v: string) => { this.properties.action = v; }, { values: ["delete", "rename"] });
+      this.addWidget("text", "new_name", "", (v: string) => { this.properties.new_name = v; });
+      this.properties = { eval_key: "", action: "delete", new_name: "" };
+      this.size = [320, 130];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      const action = this.properties.action || "delete";
+      const key = this.properties.eval_key || "";
+      if (key) {
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.textAlign = "left";
+        const label = action === "rename"
+          ? `will rename "${key}" \u2192 "${this.properties.new_name || "?"}"`
+          : `will delete "${key}"`;
+        const maxW = this.size[0] - 16;
+        let display = label;
+        while (ctx.measureText(display).width > maxW && display.length > 10) {
+          display = display.slice(0, -2);
+        }
+        if (display !== label) display += "\u2026";
+        ctx.fillText(display, 8, this.size[1] - 6);
+      }
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/Manage Evaluation", FO_ManageEvaluation as any);
+
   // ─── Output ───────────────────────────────────────────────────
 
   class FO_SetAppView extends LGraphNode {
@@ -661,8 +787,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.properties = {};
       this.size = [220, 50];
-      this.color = "#922B21";
-      this.bgcolor = "#7B241C";
+      this.color = "#FFED63";
+      this.bgcolor = "#998E3B";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Set App View", FO_SetAppView as any);
@@ -679,8 +805,8 @@ export function registerAllNodes(): void {
       this.addWidget("toggle", "overwrite", false, (v: boolean) => { this.properties.overwrite = v; });
       this.properties = { name: "my_view", description: "", overwrite: false };
       this.size = [300, 120];
-      this.color = "#922B21";
-      this.bgcolor = "#7B241C";
+      this.color = "#FFED63";
+      this.bgcolor = "#998E3B";
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Output/Save View", FO_SaveView as any);

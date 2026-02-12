@@ -266,6 +266,37 @@ class GetDatasetInfo(foo.Operator):
         except Exception:
             brain_runs = []
 
+        try:
+            evaluations = ctx.dataset.list_evaluations()
+        except Exception:
+            evaluations = []
+
+        # Curated list of popular zoo models (avoids slow foz.list_zoo_models())
+        zoo_models = [
+            # Detection
+            "faster-rcnn-resnet50-fpn-coco-torch",
+            "ssd300-vgg16-coco-torch",
+            "retinanet-resnet50-fpn-coco-torch",
+            "yolov5s-coco-torch",
+            # Classification
+            "resnet50-imagenet-torch",
+            "resnet101-imagenet-torch",
+            "mobilenet-v2-imagenet-torch",
+            "inception-v3-imagenet-torch",
+            "efficientnet-b0-imagenet-torch",
+            # Segmentation
+            "deeplabv3-resnet50-coco-torch",
+            "deeplabv3-resnet101-coco-torch",
+            # Embeddings
+            "clip-vit-base32-torch",
+            "clip-vit-large14-torch",
+            "open-clip-vit-b-32",
+            "dinov2-vits14-torch",
+            # Zero-shot
+            "zero-shot-classification-transformer-torch",
+            "zero-shot-detection-transformer-torch",
+        ]
+
         # Push dataset info to the JS side via ctx.trigger()
         # (executeOperator does NOT return Python results to JS callers)
         yield ctx.trigger(
@@ -279,6 +310,8 @@ class GetDatasetInfo(foo.Operator):
                 "tags": tags,
                 "label_classes": label_classes,
                 "brain_runs": brain_runs,
+                "evaluations": evaluations,
+                "zoo_models": zoo_models,
             },
         )
 
