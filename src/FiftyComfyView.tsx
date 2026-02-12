@@ -12,6 +12,7 @@ import { executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
 import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded } from "./litegraph/registerNodes";
+import { onEvent } from "./operators";
 
 const NS = "@harpreetsahota/FiftyComfy";
 const STORAGE_KEY = "fiftycomfy_workflows";
@@ -96,25 +97,39 @@ const sepCss: React.CSSProperties = {
 };
 
 // ─── Fetch dataset info (once per session) ─────────────────────────
+// The Python operator pushes data to JS via ctx.trigger() -> dataset_info_loaded
+// JS operator -> event bus "dataset_info". We subscribe here.
+
+let _datasetInfoListenerSet = false;
+
+function setupDatasetInfoListener() {
+  if (_datasetInfoListenerSet) return;
+  _datasetInfoListenerSet = true;
+
+  onEvent("dataset_info", (info: any) => {
+    if (info && info.fields) {
+      setDatasetInfo(info);
+      if (_graph) updateAllComboWidgets(_graph);
+      console.log(
+        "[FiftyComfy] Dataset info received:",
+        info.fields?.length, "fields,",
+        info.label_fields?.length, "label fields,",
+        info.patches_fields?.length, "patches fields,",
+        Object.keys(info.label_classes || {}).length, "label class fields"
+      );
+    }
+  });
+}
+
 function fetchDatasetInfo() {
   if (_datasetInfoFetched) return;
   _datasetInfoFetched = true;
 
+  // Subscribe to the event bus first
+  setupDatasetInfoListener();
+
+  // Trigger the Python operator which will ctx.trigger() back to JS
   executeOperator(`${NS}/get_dataset_info`, {})
-    .then((result: any) => {
-      // executeOperator may return { result: {...} } or the data directly
-      const info = (result && result.result) ? result.result : result;
-      if (info && info.fields) {
-        setDatasetInfo(info);
-        if (_graph) updateAllComboWidgets(_graph);
-        console.log(
-          "[FiftyComfy] Dataset info loaded:",
-          info.fields?.length, "fields,",
-          info.label_fields?.length, "label fields,",
-          Object.keys(info.label_classes || {}).length, "label class fields"
-        );
-      }
-    })
     .catch((e: any) => {
       console.warn("[FiftyComfy] Could not fetch dataset info:", e);
       _datasetInfoFetched = false; // allow retry on next mount

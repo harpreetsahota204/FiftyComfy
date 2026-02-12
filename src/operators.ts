@@ -80,3 +80,22 @@ export class ExecutionCompleteOperator extends Operator {
     emit("execution_complete", params as ExecutionCompletePayload);
   }
 }
+
+// ─── Dataset Info Loaded Operator ──────────────────────────────────
+// Triggered by Python GetDatasetInfo via ctx.trigger() to push
+// dataset schema info into the JS side.
+
+export class DatasetInfoLoadedOperator extends Operator {
+  get config(): OperatorConfig {
+    return new OperatorConfig({
+      name: "dataset_info_loaded",
+      label: "Dataset Info Loaded",
+      unlisted: true,
+    });
+  }
+
+  async execute({ params }: any) {
+    console.log("[FiftyComfy] dataset_info_loaded received:", params);
+    emit("dataset_info", params);
+  }
+}

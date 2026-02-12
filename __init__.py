@@ -166,18 +166,24 @@ class GetDatasetInfo(foo.Operator):
             name="get_dataset_info",
             label="Get Dataset Info for FiftyComfy",
             unlisted=True,
+            execute_as_generator=True,
         )
 
     def execute(self, ctx):
         if not ctx.dataset:
-            return {
-                "dataset_name": "",
-                "fields": [],
-                "label_fields": [],
-                "saved_views": [],
-                "tags": [],
-                "label_classes": {},
-            }
+            yield ctx.trigger(
+                "@harpreetsahota/FiftyComfy/dataset_info_loaded",
+                params={
+                    "dataset_name": "",
+                    "fields": [],
+                    "label_fields": [],
+                    "patches_fields": [],
+                    "saved_views": [],
+                    "tags": [],
+                    "label_classes": {},
+                },
+            )
+            return
 
         def _get_fqn(field):
             """Get the fully qualified name of a field's document_type."""
@@ -255,15 +261,20 @@ class GetDatasetInfo(foo.Operator):
         except Exception:
             tags = []
 
-        return {
-            "dataset_name": ctx.dataset.name,
-            "fields": fields,
-            "label_fields": label_fields,
-            "patches_fields": patches_fields,
-            "saved_views": saved_views,
-            "tags": tags,
-            "label_classes": label_classes,
-        }
+        # Push dataset info to the JS side via ctx.trigger()
+        # (executeOperator does NOT return Python results to JS callers)
+        yield ctx.trigger(
+            "@harpreetsahota/FiftyComfy/dataset_info_loaded",
+            params={
+                "dataset_name": ctx.dataset.name,
+                "fields": fields,
+                "label_fields": label_fields,
+                "patches_fields": patches_fields,
+                "saved_views": saved_views,
+                "tags": tags,
+                "label_classes": label_classes,
+            },
+        )
 
 
 # ─── Registration ───────────────────────────────────────────────────

@@ -13,7 +13,7 @@
 import { registerComponent, PluginComponentType } from "@fiftyone/plugins";
 import { registerOperator } from "@fiftyone/operators";
 import FiftyComfyView from "./FiftyComfyView";
-import { NodeStatusUpdateOperator, ExecutionCompleteOperator } from "./operators";
+import { NodeStatusUpdateOperator, ExecutionCompleteOperator, DatasetInfoLoadedOperator } from "./operators";
 
 // Register as Component (type 3) — this is what composite_view looks up
 registerComponent({
@@ -27,5 +27,6 @@ registerComponent({
 const NS = "@harpreetsahota/FiftyComfy";
 registerOperator(NodeStatusUpdateOperator, NS);
 registerOperator(ExecutionCompleteOperator, NS);
+registerOperator(DatasetInfoLoadedOperator, NS);
 
 console.log("[FiftyComfy] Component (type=3) and operators registered");
