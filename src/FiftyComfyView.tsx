@@ -220,26 +220,22 @@ export default function FiftyComfyView() {
       output_on: "#4FC3F7",
     };
 
+    // Enable autoresize so LiteGraph auto-adapts on mouse events
+    (_lgCanvas as any).autoresize = true;
+
     // Ensure the graph's render loop is running
     _graph.start();
 
     // Fetch dataset info (once per session, not per mount)
     fetchDatasetInfo();
 
-    // FIX: devicePixelRatio mismatch in litegraph's double-buffer compositing.
-    // When dpr > 1, drawBackCanvas applies a dpr transform that clips the grid,
-    // and drawFrontCanvas composites at bgcanvas.width/dpr (shrinking it).
-    // Setting viewport bypasses ALL dpr logic in both methods:
-    //   drawBackCanvas: skips setTransform(dpr,...) when viewport is set
-    //   drawFrontCanvas: composites at viewport size instead of dividing by dpr
-    // Grid renders at 1x (fine for a dotted pattern), fills the full panel.
+    // Resize: call LiteGraph's resize() with NO arguments so it reads
+    // parent.offsetWidth/Height itself and sets both canvas + bgcanvas.
+    // Do NOT set el.width/el.height manually — that causes resize() to
+    // short-circuit (it checks: if canvas.width == width) return).
     const doResize = () => {
-      if (!container || !el || !_lgCanvas) return;
-      const w = container.offsetWidth || container.clientWidth;
-      const h = container.offsetHeight || container.clientHeight;
-      if (w === 0 || h === 0) return;
-      (_lgCanvas as any).viewport = [0, 0, w, h];
-      (_lgCanvas as any).resize(w, h);
+      if (!_lgCanvas) return;
+      (_lgCanvas as any).resize();
     };
 
     doResize();
