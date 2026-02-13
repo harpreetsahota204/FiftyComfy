@@ -23,6 +23,7 @@ from .nodes import get_node_registry
 logger = logging.getLogger(__name__)
 
 STORE_VERSION = "v1"
+SHARED_STORE_KEY = f"fiftycomfy_shared_{STORE_VERSION}"
 
 
 def _get_store_key(ctx):
@@ -147,6 +148,100 @@ class DeleteGraph(foo.Operator):
 
     def execute(self, ctx):
         store = ctx.store(_get_store_key(ctx))
+        graph_id = ctx.params.get("graph_id")
+        store.delete(f"graph_{graph_id}")
+
+        index = store.get("graph_index") or []
+        index = [g for g in index if g["id"] != graph_id]
+        store.set("graph_index", index)
+
+        return {"status": "ok"}
+
+
+# ─── Shared (Global) Template Operators ─────────────────────────────
+# These mirror the per-dataset operators but use a global store key
+# so templates are available across all datasets (and all users in FOE).
+
+class SaveSharedGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="save_shared_graph",
+            label="Save Shared FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        store = ctx.store(SHARED_STORE_KEY)
+        name = ctx.params.get("name", "Untitled")
+        graph_json = ctx.params.get("graph_json", "")
+
+        try:
+            graph_data = json.loads(graph_json) if isinstance(graph_json, str) else graph_json
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+        graph_id = str(uuid.uuid4())
+        entry = {
+            "id": graph_id,
+            "name": name,
+            "graph": graph_data,
+            "saved_at": time.time(),
+        }
+
+        store.set(f"graph_{graph_id}", entry)
+
+        index = store.get("graph_index") or []
+        index.append({"id": graph_id, "name": name, "saved_at": entry["saved_at"]})
+        store.set("graph_index", index)
+
+        return {"status": "ok", "graph_id": graph_id}
+
+
+class LoadSharedGraphs(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="load_shared_graphs",
+            label="List Shared FiftyComfy Workflows",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        store = ctx.store(SHARED_STORE_KEY)
+        index = store.get("graph_index") or []
+        return {"graphs": index}
+
+
+class LoadSharedGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="load_shared_graph",
+            label="Load Shared FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        store = ctx.store(SHARED_STORE_KEY)
+        graph_id = ctx.params.get("graph_id")
+        entry = store.get(f"graph_{graph_id}")
+        if not entry:
+            return {"status": "error", "error": f"Shared graph {graph_id} not found"}
+        return {"status": "ok", "data": entry}
+
+
+class DeleteSharedGraph(foo.Operator):
+    @property
+    def config(self):
+        return foo.OperatorConfig(
+            name="delete_shared_graph",
+            label="Delete Shared FiftyComfy Workflow",
+            unlisted=True,
+        )
+
+    def execute(self, ctx):
+        store = ctx.store(SHARED_STORE_KEY)
         graph_id = ctx.params.get("graph_id")
         store.delete(f"graph_{graph_id}")
 
@@ -324,4 +419,8 @@ def register(p):
     p.register(LoadGraphs)
     p.register(LoadGraph)
     p.register(DeleteGraph)
+    p.register(SaveSharedGraph)
+    p.register(LoadSharedGraphs)
+    p.register(LoadSharedGraph)
+    p.register(DeleteSharedGraph)
     p.register(GetDatasetInfo)

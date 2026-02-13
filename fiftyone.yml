@@ -13,6 +13,10 @@ operators:
   - load_graphs
   - load_graph
   - delete_graph
+  - save_shared_graph
+  - load_shared_graphs
+  - load_shared_graph
+  - delete_shared_graph
   - get_dataset_info
 panels:
   - fiftycomfy_panel
