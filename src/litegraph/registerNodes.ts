@@ -980,8 +980,9 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
       this.addWidget("combo", "label_field", "", (v: string) => { this.properties.label_field = v; }, { values: [] as string[] });
-      this.properties = { pred_field: "", label_field: "" };
-      this.size = [320, 100];
+      this.addWidget("text", "mistakenness_field", "mistakenness", (v: string) => { this.properties.mistakenness_field = v; });
+      this.properties = { pred_field: "", label_field: "", mistakenness_field: "mistakenness" };
+      this.size = [320, 130];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
     }
@@ -997,8 +998,9 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "predictions_field", "", (v: string) => { this.properties.predictions_field = v; }, { values: [] as string[] });
-      this.properties = { predictions_field: "" };
-      this.size = [320, 70];
+      this.addWidget("text", "hardness_field", "hardness", (v: string) => { this.properties.hardness_field = v; });
+      this.properties = { predictions_field: "", hardness_field: "hardness" };
+      this.size = [320, 100];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
     }

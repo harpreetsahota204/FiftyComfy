@@ -185,15 +185,19 @@ class ComputeMistakennessHandler(NodeHandler):
 
         pred_field = params.get("pred_field", "")
         label_field = params.get("label_field", "")
+        mistakenness_field = params.get("mistakenness_field", "mistakenness")
         if not pred_field:
             raise ValueError("No predictions field specified")
         if not label_field:
             raise ValueError("No ground truth label field specified")
+        if not mistakenness_field:
+            mistakenness_field = "mistakenness"
 
         fob.compute_mistakenness(
             input_view,
             pred_field,
             label_field=label_field,
+            mistakenness_field=mistakenness_field,
         )
         return input_view
 
@@ -201,8 +205,9 @@ class ComputeMistakennessHandler(NodeHandler):
 class ComputeHardnessHandler(NodeHandler):
     """Compute sample hardness (how difficult to classify).
 
-    API: fob.compute_hardness(samples, label_field, ...)
+    API: fob.compute_hardness(samples, label_field, hardness_field="hardness", ...)
     - label_field: the predictions field containing logits
+    - hardness_field: the field to store hardness scores
     Ref: https://docs.voxel51.com/brain.html#sample-hardness
     """
 
@@ -213,10 +218,15 @@ class ComputeHardnessHandler(NodeHandler):
         import fiftyone.brain as fob
 
         predictions_field = params.get("predictions_field", "")
+        hardness_field = params.get("hardness_field", "hardness")
         if not predictions_field:
             raise ValueError("No predictions field specified")
+        if not hardness_field:
+            hardness_field = "hardness"
 
-        fob.compute_hardness(input_view, predictions_field)
+        fob.compute_hardness(
+            input_view, predictions_field, hardness_field=hardness_field
+        )
         return input_view
 
 
@@ -258,7 +268,7 @@ class ComputeNearDuplicatesHandler(NodeHandler):
 
         threshold = params.get("threshold")
         if threshold is not None and threshold != "":
-            kwargs["thresh"] = float(threshold)
+            kwargs["threshold"] = float(threshold)
 
         # embeddings: field name string for pre-computed embeddings
         embeddings = params.get("embeddings", "")

@@ -105,6 +105,7 @@ function buildLinearGraph(nodeDefs: NodeDef[]): any {
   }
 
   return {
+    version: 0.4,
     last_node_id: nodes.length,
     last_link_id: lid - 1,
     nodes,
@@ -189,9 +190,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     id: "curate-by-uniqueness",
     name: "Curate by Uniqueness",
     category: "Data Curation",
-    description: "Compute uniqueness scores and view the most unique samples",
+    description: "Compute embeddings, uniqueness scores, and view the most unique samples",
     graph: buildLinearGraph([
       SRC("Current Dataset"),
+      BR("Compute Embeddings", "Compute Embeddings", 340, 100,
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
       BR("Compute Uniqueness", "Compute Uniqueness", 320, 100,
         { uniqueness_field: "uniqueness", embeddings: "embeddings" }),
       VS("Sort By", "Sort By", 280, 90, { field: "uniqueness", reverse: true }),
@@ -203,9 +206,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     id: "curate-by-representativeness",
     name: "Curate by Representativeness",
     category: "Data Curation",
-    description: "Score how representative each sample is and view top results",
+    description: "Compute embeddings, representativeness scores, and view top results",
     graph: buildLinearGraph([
       SRC("Current Dataset"),
+      BR("Compute Embeddings", "Compute Embeddings", 340, 100,
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
       BR("Compute Representativeness", "Compute Representativeness", 360, 130,
         { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" }),
       VS("Sort By", "Sort By", 280, 90, { field: "representativeness", reverse: true }),
@@ -222,8 +227,8 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     description: "Estimate mistakenness and surface likely annotation errors",
     graph: buildLinearGraph([
       SRC("Current Dataset"),
-      BR("Compute Mistakenness", "Compute Mistakenness", 320, 100,
-        { pred_field: "", label_field: "" }),
+      BR("Compute Mistakenness", "Compute Mistakenness", 320, 130,
+        { pred_field: "", label_field: "", mistakenness_field: "mistakenness" }),
       VS("Sort By", "Sort By", 280, 90, { field: "mistakenness", reverse: true }),
       OUT(),
     ]),
@@ -235,8 +240,8 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     description: "Compute sample hardness and view hardest-to-classify samples",
     graph: buildLinearGraph([
       SRC("Current Dataset"),
-      BR("Compute Hardness", "Compute Hardness", 320, 70,
-        { predictions_field: "" }),
+      BR("Compute Hardness", "Compute Hardness", 320, 100,
+        { predictions_field: "", hardness_field: "hardness" }),
       VS("Sort By", "Sort By", 280, 90, { field: "hardness", reverse: true }),
       OUT(),
     ]),
@@ -251,7 +256,7 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       VS("Filter Labels", "Filter Labels", 320, 150,
-        { field: "", expression: "F('confidence') > 0.9", only_matches: true }),
+        { field: "", expression: 'F("confidence") > 0.90', only_matches: true }),
       OUT(),
     ]),
   },
@@ -266,7 +271,7 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
       VS("Compute BBox Area", "Compute BBox Area", 340, 150,
         { field: "", output_field: "bbox_area", area_mode: "pixel" }),
       VS("Filter Labels", "Filter Labels", 320, 150,
-        { field: "", expression: "F('bbox_area') > 1024", only_matches: true }),
+        { field: "", expression: 'F("bbox_area") > 3200', only_matches: true }),
       OUT(),
     ]),
   },
