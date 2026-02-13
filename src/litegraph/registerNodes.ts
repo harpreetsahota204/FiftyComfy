@@ -275,13 +275,10 @@ export function installSearchFilter(canvas: any): void {
       const ctor = types[type];
       const title: string = ctor.title || "";
 
-      // Match against type path and title
+      // Match against type path and title (show all when query is empty)
       if (str && !type.toLowerCase().includes(str) && !title.toLowerCase().includes(str)) {
         continue;
       }
-
-      // Only show results when there's a query (don't flood on empty)
-      if (!str) continue;
 
       results.push(type);
     }
