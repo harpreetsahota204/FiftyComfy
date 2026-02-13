@@ -30,6 +30,7 @@ interface NodeDef {
   properties: Record<string, any>;
   hasInput: boolean;   // has an FO_VIEW input?
   hasOutput: boolean;  // has an FO_VIEW output?
+  widgets_values?: any[];  // ordered widget values matching constructor order
 }
 
 function buildLinearGraph(nodeDefs: NodeDef[]): any {
@@ -69,6 +70,11 @@ function buildLinearGraph(nodeDefs: NodeDef[]): any {
         ? [{ name: "view", type: "FO_VIEW", links: willHaveOutputLink ? [linkId + (inputLinkId ? 0 : 1)] : [], slot_index: 0 }]
         : [],
     };
+
+    // Include widgets_values so configure() populates widget display values
+    if (def.widgets_values) {
+      n.widgets_values = def.widgets_values;
+    }
 
     nodes.push(n);
 
@@ -118,24 +124,24 @@ function buildLinearGraph(nodeDefs: NodeDef[]): any {
 
 // ─── Node shorthand constructors ───────────────────────────────────
 
-const SRC = (title: string, props: any = {}): NodeDef => ({
+const SRC = (title: string, props: any = {}, wv?: any[]): NodeDef => ({
   type: "FiftyComfy/Source/Current Dataset", title, w: 240, h: 60,
-  properties: props, hasInput: false, hasOutput: true,
+  properties: props, hasInput: false, hasOutput: true, widgets_values: wv,
 });
 
-const VS = (name: string, title: string, w: number, h: number, props: any): NodeDef => ({
+const VS = (name: string, title: string, w: number, h: number, props: any, wv?: any[]): NodeDef => ({
   type: `FiftyComfy/View Stages/${name}`, title, w, h,
-  properties: props, hasInput: true, hasOutput: true,
+  properties: props, hasInput: true, hasOutput: true, widgets_values: wv,
 });
 
-const BR = (name: string, title: string, w: number, h: number, props: any): NodeDef => ({
+const BR = (name: string, title: string, w: number, h: number, props: any, wv?: any[]): NodeDef => ({
   type: `FiftyComfy/Brain/${name}`, title, w, h,
-  properties: props, hasInput: true, hasOutput: true,
+  properties: props, hasInput: true, hasOutput: true, widgets_values: wv,
 });
 
-const EV = (name: string, title: string, w: number, h: number, props: any): NodeDef => ({
+const EV = (name: string, title: string, w: number, h: number, props: any, wv?: any[]): NodeDef => ({
   type: `FiftyComfy/Evaluation/${name}`, title, w, h,
-  properties: props, hasInput: true, hasOutput: true,
+  properties: props, hasInput: true, hasOutput: true, widgets_values: wv,
 });
 
 const OUT = (): NodeDef => ({
@@ -155,9 +161,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Embeddings", "Compute Embeddings", 340, 100,
-        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" },
+        ["clip-vit-base32-torch", "embeddings"]),
       BR("Compute Visualization", "Compute Visualization", 340, 150,
-        { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "embeddings" }),
+        { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "embeddings" },
+        ["visualization", "umap", "2", "embeddings"]),
       OUT(),
     ]),
   },
@@ -169,9 +177,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Embeddings", "Compute Embeddings", 340, 100,
-        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" },
+        ["clip-vit-base32-torch", "embeddings"]),
       BR("Find Near Duplicates", "Find Near Duplicates", 320, 100,
-        { threshold: 0.1, embeddings: "embeddings" }),
+        { threshold: 0.1, embeddings: "embeddings" },
+        [0.1, "embeddings"]),
       OUT(),
     ]),
   },
@@ -194,11 +204,15 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Embeddings", "Compute Embeddings", 340, 100,
-        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" },
+        ["clip-vit-base32-torch", "embeddings"]),
       BR("Compute Uniqueness", "Compute Uniqueness", 320, 100,
-        { uniqueness_field: "uniqueness", embeddings: "embeddings" }),
-      VS("Sort By", "Sort By", 280, 90, { field: "uniqueness", reverse: true }),
-      VS("Limit", "Limit", 220, 70, { count: 100 }),
+        { uniqueness_field: "uniqueness", embeddings: "embeddings" },
+        ["uniqueness", "embeddings"]),
+      VS("Sort By", "Sort By", 280, 90,
+        { field: "uniqueness", reverse: true },
+        ["uniqueness", true]),
+      VS("Limit", "Limit", 220, 70, { count: 100 }, [100]),
       OUT(),
     ]),
   },
@@ -210,11 +224,15 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Embeddings", "Compute Embeddings", 340, 100,
-        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" }),
+        { model: "clip-vit-base32-torch", embeddings_field: "embeddings" },
+        ["clip-vit-base32-torch", "embeddings"]),
       BR("Compute Representativeness", "Compute Representativeness", 360, 130,
-        { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" }),
-      VS("Sort By", "Sort By", 280, 90, { field: "representativeness", reverse: true }),
-      VS("Limit", "Limit", 220, 70, { count: 100 }),
+        { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" },
+        ["representativeness", "cluster-center", "embeddings"]),
+      VS("Sort By", "Sort By", 280, 90,
+        { field: "representativeness", reverse: true },
+        ["representativeness", true]),
+      VS("Limit", "Limit", 220, 70, { count: 100 }, [100]),
       OUT(),
     ]),
   },
@@ -228,8 +246,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Mistakenness", "Compute Mistakenness", 320, 130,
-        { pred_field: "", label_field: "", mistakenness_field: "mistakenness" }),
-      VS("Sort By", "Sort By", 280, 90, { field: "mistakenness", reverse: true }),
+        { pred_field: "", label_field: "", mistakenness_field: "mistakenness" },
+        ["", "", "mistakenness"]),
+      VS("Sort By", "Sort By", 280, 90,
+        { field: "mistakenness", reverse: true },
+        ["mistakenness", true]),
       OUT(),
     ]),
   },
@@ -241,8 +262,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       BR("Compute Hardness", "Compute Hardness", 320, 100,
-        { predictions_field: "", hardness_field: "hardness" }),
-      VS("Sort By", "Sort By", 280, 90, { field: "hardness", reverse: true }),
+        { predictions_field: "", hardness_field: "hardness" },
+        ["", "hardness"]),
+      VS("Sort By", "Sort By", 280, 90,
+        { field: "hardness", reverse: true },
+        ["hardness", true]),
       OUT(),
     ]),
   },
@@ -256,7 +280,8 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       VS("Filter Labels", "Filter Labels", 320, 150,
-        { field: "", expression: 'F("confidence") > 0.90', only_matches: true }),
+        { field: "", expression: 'F("confidence") > 0.90', only_matches: true },
+        ["", 'F("confidence") > 0.90', true]),
       OUT(),
     ]),
   },
@@ -267,11 +292,14 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     description: "Compute metadata, bbox areas, and filter detections by size",
     graph: buildLinearGraph([
       SRC("Current Dataset"),
-      VS("Compute Metadata", "Compute Metadata", 280, 70, { overwrite: false }),
+      VS("Compute Metadata", "Compute Metadata", 280, 70,
+        { overwrite: false }, [false]),
       VS("Compute BBox Area", "Compute BBox Area", 340, 150,
-        { field: "", output_field: "bbox_area", area_mode: "pixel" }),
+        { field: "", output_field: "bbox_area", area_mode: "pixel" },
+        ["", "bbox_area", "pixel"]),
       VS("Filter Labels", "Filter Labels", 320, 150,
-        { field: "", expression: 'F("bbox_area") > 3200', only_matches: true }),
+        { field: "", expression: 'F("bbox_area") > 3200', only_matches: true },
+        ["", 'F("bbox_area") > 3200', true]),
       OUT(),
     ]),
   },
@@ -285,9 +313,11 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       EV("Evaluate Detections", "Evaluate Detections", 340, 150,
-        { pred_field: "", gt_field: "", eval_key: "eval", method: "coco" }),
+        { pred_field: "", gt_field: "", eval_key: "eval", method: "coco" },
+        ["", "", "eval", "coco"]),
       EV("To Evaluation Patches", "To Evaluation Patches", 320, 70,
-        { eval_key: "eval" }),
+        { eval_key: "eval" },
+        ["eval"]),
       OUT(),
     ]),
   },
@@ -299,7 +329,8 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
     graph: buildLinearGraph([
       SRC("Current Dataset"),
       EV("Evaluate Classifications", "Evaluate Classifications", 340, 130,
-        { pred_field: "", gt_field: "", eval_key: "eval" }),
+        { pred_field: "", gt_field: "", eval_key: "eval" },
+        ["", "", "eval"]),
       OUT(),
     ]),
   },
