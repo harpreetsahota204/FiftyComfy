@@ -151,6 +151,12 @@ function populateNodeCombos(node: any): void {
         ? _datasetInfo.brain_runs
         : ["(no brain runs)"];
     }
+    // Compute BBox Area: show only detection-type fields
+    else if (name === "field" && t.includes("Compute BBox Area")) {
+      w.options.values = _datasetInfo.detection_fields.length > 0
+        ? _datasetInfo.detection_fields
+        : ["(no detection fields)"];
+    }
     // Filter Keypoints: show only label fields (keypoint fields ideally)
     else if (name === "field" && t.includes("Filter Keypoints")) {
       w.options.values = _datasetInfo.label_fields.length > 0
@@ -208,6 +214,9 @@ const NODE_VISIBILITY_RULES: Record<string, (info: DatasetInfo) => boolean> = {
   "FiftyComfy/View Stages/Filter Keypoints": (i) => i.label_fields.length === 0,
   "FiftyComfy/View Stages/Select Labels": (i) => i.label_fields.length === 0,
   "FiftyComfy/View Stages/Exclude Labels": (i) => i.label_fields.length === 0,
+
+  // Compute BBox Area requires detection fields
+  "FiftyComfy/View Stages/Compute BBox Area": (i) => i.detection_fields.length === 0,
 
   // Brain nodes requiring label fields
   "FiftyComfy/Brain/Compute Mistakenness": (i) => i.label_fields.length === 0,
@@ -781,6 +790,42 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Group By", FO_GroupBy as any);
+
+  class FO_ComputeMetadata extends LGraphNode {
+    static title = "Compute Metadata";
+    static desc = "Populate width, height, and other metadata for all samples";
+    constructor() {
+      super();
+      this.title = "Compute Metadata";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("toggle", "overwrite", false, (v: boolean) => { this.properties.overwrite = v; });
+      this.properties = { overwrite: false };
+      this.size = [280, 70];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Compute Metadata", FO_ComputeMetadata as any);
+
+  class FO_ComputeBBoxArea extends LGraphNode {
+    static title = "Compute BBox Area";
+    static desc = "Compute bounding box area for each detection";
+    constructor() {
+      super();
+      this.title = "Compute BBox Area";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("text", "output_field", "bbox_area", (v: string) => { this.properties.output_field = v; });
+      this.addWidget("toggle", "use_pixels", false, (v: boolean) => { this.properties.use_pixels = v; });
+      this.properties = { field: "", output_field: "bbox_area", use_pixels: false };
+      this.size = [320, 130];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Compute BBox Area", FO_ComputeBBoxArea as any);
 
   // ─── Brain ────────────────────────────────────────────────────
 

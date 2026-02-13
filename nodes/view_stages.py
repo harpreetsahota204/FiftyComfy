@@ -1,7 +1,11 @@
 """View-stage node handlers — filter, sort, and transform FiftyOne views."""
 
+import logging
+
 import fiftyone as fo
-from . import NodeHandler, PATCHES_FQNS, KEYPOINT_FQNS, require_field_type
+from . import NodeHandler, PATCHES_FQNS, KEYPOINT_FQNS, DETECTION_FQNS, require_field_type
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +367,93 @@ class GroupByHandler(NodeHandler):
         return input_view.group_by(field, reverse=reverse, flat=flat)
 
 
+class ComputeMetadataHandler(NodeHandler):
+    """Populate the metadata field (width, height, etc.) on all samples.
+
+    API: view.compute_metadata(overwrite=False)
+    Ref: https://docs.voxel51.com/api/fiftyone.core.collections.html#fiftyone.core.collections.SampleCollection.compute_metadata
+    """
+
+    node_type = "FiftyComfy/View Stages/Compute Metadata"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        overwrite = params.get("overwrite", False)
+
+        logger.info(
+            f"[FiftyComfy] Computing metadata (overwrite={overwrite}) "
+            f"for {len(input_view)} samples"
+        )
+        input_view.compute_metadata(overwrite=overwrite)
+        return input_view
+
+
+class ComputeBBoxAreaHandler(NodeHandler):
+    """Compute bounding box area and store it as an attribute on each detection.
+
+    Computes area in relative coordinates (width * height) or pixel
+    coordinates (width * height * metadata.width * metadata.height).
+    The result is stored as a new attribute on each detection object.
+
+    Ref: https://docs.voxel51.com/cheat_sheets/filtering_cheat_sheet.html#bounding-boxes
+    """
+
+    node_type = "FiftyComfy/View Stages/Compute BBox Area"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        from fiftyone import ViewField as F
+
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No detection field specified")
+
+        require_field_type(ctx, field, DETECTION_FQNS, "Compute BBox Area")
+
+        output_field = params.get("output_field", "bbox_area")
+        if not output_field:
+            output_field = "bbox_area"
+
+        use_pixels = params.get("use_pixels", False)
+
+        # Build the area expression
+        bbox_w = F("bounding_box")[2]
+        bbox_h = F("bounding_box")[3]
+
+        if use_pixels:
+            # Verify metadata exists
+            try:
+                sample = input_view.first()
+                if sample and (sample.metadata is None
+                               or sample.metadata.width is None):
+                    raise ValueError(
+                        "Pixel mode requires metadata to be populated. "
+                        "Add a 'Compute Metadata' node upstream."
+                    )
+            except ValueError:
+                raise
+            except Exception:
+                pass
+
+            area_expr = (
+                F("$metadata.width") * bbox_w
+                * F("$metadata.height") * bbox_h
+            )
+        else:
+            area_expr = bbox_w * bbox_h
+
+        # Write the area as an attribute on each detection
+        field_path = f"{field}.detections.{output_field}"
+
+        logger.info(
+            f"[FiftyComfy] Computing bbox area: "
+            f"field={field}, output={output_field}, pixels={use_pixels}"
+        )
+
+        input_view.set_field(field_path, area_expr).save()
+        return input_view
+
+
 # All handlers in this module
 HANDLERS = [
     MatchHandler(),
@@ -386,4 +477,6 @@ HANDLERS = [
     ExcludeLabelsHandler(),
     SetFieldHandler(),
     GroupByHandler(),
+    ComputeMetadataHandler(),
+    ComputeBBoxAreaHandler(),
 ]
