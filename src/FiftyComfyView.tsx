@@ -203,7 +203,16 @@ export default function FiftyComfyView() {
       _lgCanvas = null;
     }
 
-    // Create a fresh LGraphCanvas bound to the new DOM element
+    // Pre-size the canvas BEFORE creating LGraphCanvas so the constructor
+    // reads the correct dimensions for its internal viewport.
+    const initW = container.offsetWidth || container.clientWidth;
+    const initH = container.offsetHeight || container.clientHeight;
+    if (initW > 0 && initH > 0) {
+      el.width = initW;
+      el.height = initH;
+    }
+
+    // Create a fresh LGraphCanvas bound to the pre-sized DOM element
     _lgCanvas = new LGraphCanvas(el, _graph);
     _lgCanvas.render_shadows = false;
     _lgCanvas.max_zoom = 4;
@@ -223,26 +232,33 @@ export default function FiftyComfyView() {
     // Enable autoresize so LiteGraph auto-adapts on mouse events
     (_lgCanvas as any).autoresize = true;
 
+    // Also pre-size bgcanvas to match
+    const bg0 = (_lgCanvas as any).bgcanvas;
+    if (bg0 && initW > 0 && initH > 0) {
+      bg0.width = initW;
+      bg0.height = initH;
+    }
+
     // Ensure the graph's render loop is running
     _graph.start();
 
     // Fetch dataset info (once per session, not per mount)
     fetchDatasetInfo();
 
-    // Resize canvas to fill the container.
-    // IMPORTANT: let _lgCanvas.resize() set canvas dimensions so LiteGraph
-    // updates its internal viewport. Then patch bgcanvas as a safety net.
+    // Resize handler for ongoing size changes
     const doResize = () => {
-      if (!container || !_lgCanvas) return;
+      if (!container || !el || !_lgCanvas) return;
       const w = container.offsetWidth || container.clientWidth;
       const h = container.offsetHeight || container.clientHeight;
       if (w === 0 || h === 0) return;
-      (_lgCanvas as any).resize(w, h);
+      el.width = w;
+      el.height = h;
       const bg = (_lgCanvas as any).bgcanvas;
-      if (bg && (bg.width !== w || bg.height !== h)) {
+      if (bg) {
         bg.width = w;
         bg.height = h;
       }
+      (_lgCanvas as any).resize(w, h);
       _lgCanvas.setDirty(true, true);
     };
 
