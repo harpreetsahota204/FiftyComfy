@@ -354,11 +354,12 @@ export function registerAllNodes(): void {
       this.title = "Sort By Similarity";
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "query", "", (v: string) => { this.properties.query = v; });
       this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
       this.addWidget("number", "k", 25, (v: number) => { this.properties.k = v; }, { min: 1, max: 100000, step: 1, precision: 0 });
       this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
-      this.properties = { brain_key: "similarity", k: 25, reverse: false };
-      this.size = [320, 120];
+      this.properties = { query: "", brain_key: "similarity", k: 25, reverse: false };
+      this.size = [320, 150];
       this.color = "#5AA5F1";
       this.bgcolor = "#365F8E";
     }

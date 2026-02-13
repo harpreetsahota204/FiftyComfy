@@ -11,6 +11,24 @@ from collections import deque
 logger = logging.getLogger(__name__)
 
 
+def _validate_properties(properties, node_title):
+    """Raise ValueError if any property contains a placeholder dropdown value.
+
+    The JS combo widgets use strings like "(no label fields)" or
+    "(no saved views)" when the dataset has no matching entries.
+    These are real selectable values in LiteGraph, so they arrive
+    here as property values and would produce cryptic errors
+    downstream (e.g., "Field '(no label fields)' not found").
+    Catch them early with a clear message.
+    """
+    for key, value in properties.items():
+        if isinstance(value, str) and value.startswith("(no ") and value.endswith(")"):
+            raise ValueError(
+                f"'{node_title}' — '{key}' has no valid selection: {value}. "
+                f"Please ensure your dataset has the required fields."
+            )
+
+
 class GraphExecutor:
     """Execute a LiteGraph-serialized graph topologically."""
 
@@ -92,6 +110,7 @@ class GraphExecutor:
                 if handler is None:
                     raise ValueError(f"No handler for: {node_type}")
 
+                _validate_properties(properties, node_title)
                 output = handler.execute(input_view, properties, ctx)
                 results[node_id] = output
 
