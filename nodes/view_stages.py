@@ -391,12 +391,19 @@ class ComputeMetadataHandler(NodeHandler):
 class ComputeBBoxAreaHandler(NodeHandler):
     """Compute bounding box area and store it as an attribute on each detection.
 
-    Computes area in relative coordinates (width * height) or pixel
-    coordinates (width * height * metadata.width * metadata.height).
+    Supports two modes:
+    - relative: width * height in normalized [0,1] coordinates
+    - pixel: width * height in actual pixel dimensions (requires metadata)
+
     The result is stored as a new attribute on each detection object.
 
     Ref: https://docs.voxel51.com/cheat_sheets/filtering_cheat_sheet.html#bounding-boxes
     """
+
+    # Only Detections have bounding boxes with meaningful area
+    _BBOX_FQNS = {
+        "fiftyone.core.labels.Detections",
+    }
 
     node_type = "FiftyComfy/View Stages/Compute BBox Area"
     category = "view_stage"
@@ -408,19 +415,19 @@ class ComputeBBoxAreaHandler(NodeHandler):
         if not field:
             raise ValueError("No detection field specified")
 
-        require_field_type(ctx, field, DETECTION_FQNS, "Compute BBox Area")
+        require_field_type(ctx, field, self._BBOX_FQNS, "Compute BBox Area")
 
         output_field = params.get("output_field", "bbox_area")
         if not output_field:
             output_field = "bbox_area"
 
-        use_pixels = params.get("use_pixels", False)
+        area_mode = params.get("area_mode", "relative")
 
         # Build the area expression
         bbox_w = F("bounding_box")[2]
         bbox_h = F("bounding_box")[3]
 
-        if use_pixels:
+        if area_mode == "pixel":
             # Verify metadata exists
             try:
                 sample = input_view.first()
@@ -447,7 +454,7 @@ class ComputeBBoxAreaHandler(NodeHandler):
 
         logger.info(
             f"[FiftyComfy] Computing bbox area: "
-            f"field={field}, output={output_field}, pixels={use_pixels}"
+            f"field={field}, output={output_field}, mode={area_mode}"
         )
 
         input_view.set_field(field_path, area_expr).save()

@@ -818,11 +818,22 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
       this.addWidget("text", "output_field", "bbox_area", (v: string) => { this.properties.output_field = v; });
-      this.addWidget("toggle", "use_pixels", false, (v: boolean) => { this.properties.use_pixels = v; });
-      this.properties = { field: "", output_field: "bbox_area", use_pixels: false };
-      this.size = [320, 130];
+      this.addWidget("combo", "area_mode", "relative", (v: string) => { this.properties.area_mode = v; }, { values: ["relative", "pixel"] });
+      this.properties = { field: "", output_field: "bbox_area", area_mode: "relative" };
+      this.size = [340, 150];
       this.color = "#5AA5F1";
       this.bgcolor = "#365F8E";
+    }
+    onDrawForeground(ctx: CanvasRenderingContext2D) {
+      if ((this.flags as any)?.collapsed) return;
+      const mode = this.properties.area_mode || "relative";
+      ctx.font = "10px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.textAlign = "left";
+      const hint = mode === "pixel"
+        ? "pixel: w\u00D7h in pixels (needs Compute Metadata)"
+        : "relative: w\u00D7h in [0,1] normalized coords";
+      ctx.fillText(hint, 8, this.size[1] - 6);
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Compute BBox Area", FO_ComputeBBoxArea as any);
