@@ -50,6 +50,7 @@ let _datasetInfo: DatasetInfo = {
  */
 export function setDatasetInfo(info: DatasetInfo): void {
   _datasetInfo = info;
+  updateNodeVisibility();
 }
 
 /**
@@ -186,6 +187,112 @@ export function updateAllComboWidgets(graph: LGraph): void {
   for (const node of nodes) {
     populateNodeCombos(node);
   }
+}
+
+// ─── Node visibility — hide nodes that don't apply to the dataset ───
+
+/**
+ * Mapping of node type strings to a function that returns true if
+ * the node should be HIDDEN (skip_list = true) given the current
+ * dataset info.
+ */
+const NODE_VISIBILITY_RULES: Record<string, (info: DatasetInfo) => boolean> = {
+  // Source
+  "FiftyComfy/Source/Load Saved View": (i) => i.saved_views.length === 0,
+
+  // View stages requiring specific field types
+  "FiftyComfy/View Stages/To Patches": (i) => i.patches_fields.length === 0,
+  "FiftyComfy/View Stages/Filter Labels": (i) => i.label_fields.length === 0,
+  "FiftyComfy/View Stages/Match Labels": (i) => i.label_fields.length === 0,
+  "FiftyComfy/View Stages/Map Labels": (i) => i.label_fields.length === 0,
+  "FiftyComfy/View Stages/Filter Keypoints": (i) => i.label_fields.length === 0,
+  "FiftyComfy/View Stages/Select Labels": (i) => i.label_fields.length === 0,
+  "FiftyComfy/View Stages/Exclude Labels": (i) => i.label_fields.length === 0,
+
+  // Brain nodes requiring label fields
+  "FiftyComfy/Brain/Compute Mistakenness": (i) => i.label_fields.length === 0,
+  "FiftyComfy/Brain/Compute Hardness": (i) => i.label_fields.length === 0,
+
+  // Brain management requiring brain runs
+  "FiftyComfy/Brain/Manage Brain Run": (i) => i.brain_runs.length === 0,
+  "FiftyComfy/View Stages/Sort By Similarity": (i) => i.brain_runs.length === 0,
+
+  // Evaluation nodes requiring specific field types
+  "FiftyComfy/Evaluation/Evaluate Detections": (i) => i.detection_fields.length === 0,
+  "FiftyComfy/Evaluation/Evaluate Classifications": (i) => i.classification_fields.length === 0,
+  "FiftyComfy/Evaluation/Evaluate Segmentations": (i) => i.segmentation_fields.length === 0,
+  "FiftyComfy/Evaluation/Evaluate Regressions": (i) => i.regression_fields.length === 0,
+
+  // Evaluation management requiring evaluations
+  "FiftyComfy/Evaluation/Manage Evaluation": (i) => i.evaluations.length === 0,
+  "FiftyComfy/Evaluation/To Evaluation Patches": (i) => i.evaluations.length === 0,
+};
+
+/**
+ * The set of node type strings currently hidden from the UI.
+ * Used by the search box filter to stay in sync with skip_list.
+ */
+let _hiddenNodeTypes: Set<string> = new Set();
+
+/**
+ * Update which node types are visible in the context menu and
+ * search box based on the current dataset info.
+ *
+ * Called from setDatasetInfo() after the info cache is updated.
+ */
+function updateNodeVisibility(): void {
+  _hiddenNodeTypes.clear();
+
+  for (const [nodeType, shouldHide] of Object.entries(NODE_VISIBILITY_RULES)) {
+    const ctor = (LiteGraph as any).registered_node_types[nodeType];
+    if (!ctor) continue;
+
+    const hidden = shouldHide(_datasetInfo);
+    ctor.skip_list = hidden;
+    if (hidden) {
+      _hiddenNodeTypes.add(nodeType);
+    }
+  }
+}
+
+/**
+ * Install a search box filter on the canvas that respects node
+ * visibility. Call once after creating LGraphCanvas.
+ *
+ * The onSearchBox callback replaces the default search behavior,
+ * so we re-implement the basic type-name / title matching with
+ * our hidden-set filter applied.
+ */
+export function installSearchFilter(canvas: any): void {
+  canvas.onSearchBox = function (_helper: any, query: string, _graphcanvas: any): any[] {
+    const str = (query || "").toLowerCase();
+    const results: any[] = [];
+    const types = (LiteGraph as any).registered_node_types;
+    for (const type in types) {
+      // Skip hidden nodes
+      if (_hiddenNodeTypes.has(type)) continue;
+
+      const ctor = types[type];
+      const title: string = ctor.title || "";
+
+      // Match against type path and title
+      if (str && !type.toLowerCase().includes(str) && !title.toLowerCase().includes(str)) {
+        continue;
+      }
+
+      // Only show results when there's a query (don't flood on empty)
+      if (!str) continue;
+
+      results.push(type);
+    }
+    // Alphabetical sort by the node's display title
+    results.sort((a: string, b: string) => {
+      const titleA = (types[a]?.title || a).toLowerCase();
+      const titleB = (types[b]?.title || b).toLowerCase();
+      return titleA.localeCompare(titleB);
+    });
+    return results;
+  };
 }
 
 /**

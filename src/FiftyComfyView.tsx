@@ -11,7 +11,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
-import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded } from "./litegraph/registerNodes";
+import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded, installSearchFilter } from "./litegraph/registerNodes";
 import { onEvent } from "./operators";
 
 const NS = "@harpreetsahota/FiftyComfy";
@@ -222,6 +222,9 @@ export default function FiftyComfyView() {
 
     // Enable autoresize so LiteGraph auto-adapts on mouse events
     (_lgCanvas as any).autoresize = true;
+
+    // Install search filter so hidden nodes don't appear in search
+    installSearchFilter(_lgCanvas);
 
     // Ensure the graph's render loop is running
     _graph.start();
