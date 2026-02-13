@@ -153,8 +153,11 @@ export default function FiftyComfyView() {
   const [status, setStatus] = useState("Ready");
   const [running, setRunning] = useState(false);
 
-  // Template picker state
-  const [showLoad, setShowLoad] = useState(false);
+  // Templates panel state (built-in)
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // Saved (custom) panel state
+  const [showSaved, setShowSaved] = useState(false);
   const [datasetTemplates, setDatasetTemplates] = useState<SavedEntry[]>([]);
   const [sharedTemplates, setSharedTemplates] = useState<SavedEntry[]>([]);
 
@@ -235,7 +238,8 @@ export default function FiftyComfyView() {
     _graph.configure(data);
     updateAllComboWidgets(_graph);
     setStatus("Loaded: " + label);
-    setShowLoad(false);
+    setShowTemplates(false);
+    setShowSaved(false);
   }, []);
 
   // ---- Run Workflow ----
@@ -263,7 +267,8 @@ export default function FiftyComfyView() {
     setSaveName("");
     setSaveScope("dataset");
     setShowSave(true);
-    setShowLoad(false);
+    setShowTemplates(false);
+    setShowSaved(false);
   }, []);
 
   const handleSaveConfirm = useCallback(async () => {
@@ -283,10 +288,18 @@ export default function FiftyComfyView() {
     setShowSave(false);
   }, [saveName, saveScope]);
 
-  // ---- Load template list (server-side) ----
-  const handleLoadOpen = useCallback(async () => {
+  // ---- Open Templates panel (built-in) ----
+  const handleTemplatesOpen = useCallback(() => {
+    setShowTemplates(true);
+    setShowSaved(false);
     setShowSave(false);
-    setShowLoad(true);
+  }, []);
+
+  // ---- Open Saved panel (custom user workflows) ----
+  const handleSavedOpen = useCallback(async () => {
+    setShowSaved(true);
+    setShowTemplates(false);
+    setShowSave(false);
 
     // Fetch dataset templates
     try {
@@ -372,8 +385,10 @@ export default function FiftyComfyView() {
         style: btnRunCss, onClick: handleRun, disabled: running,
       }, running ? "Running..." : "\u25B6 Run Workflow"),
       React.createElement("div", { style: sepCss }),
+      React.createElement("button", { style: btnCss, onClick: handleTemplatesOpen }, "Templates"),
+      React.createElement("button", { style: btnCss, onClick: handleSavedOpen }, "Saved"),
+      React.createElement("div", { style: sepCss }),
       React.createElement("button", { style: btnCss, onClick: handleSaveOpen }, "Save"),
-      React.createElement("button", { style: btnCss, onClick: handleLoadOpen }, "Templates"),
       React.createElement("div", { style: sepCss }),
       React.createElement("button", { style: btnCss, onClick: handleClear }, "Clear"),
       React.createElement("span", {
@@ -437,20 +452,18 @@ export default function FiftyComfyView() {
       }, "Save"),
     ),
 
-    // ---- Template Picker Panel ----
-    showLoad && React.createElement("div", { style: panelCss },
-      // Header
+    // ---- Templates Panel (built-in) ----
+    showTemplates && React.createElement("div", { style: panelCss },
       React.createElement("div", {
         style: { fontSize: 11, color: "#888", marginBottom: 6, display: "flex", justifyContent: "space-between" },
       },
-        React.createElement("span", null, "Templates & Workflows"),
+        React.createElement("span", null, "Built-in Templates"),
         React.createElement("span", {
           style: { cursor: "pointer", color: "#aaa" },
-          onClick: () => setShowLoad(false),
+          onClick: () => setShowTemplates(false),
         }, "\u2715"),
       ),
 
-      // ── Built-in Templates ──
       ...Object.entries(builtinByCategory).flatMap(([category, templates]) => [
         React.createElement("div", { key: `cat-${category}`, style: sectionHeaderCss }, category),
         ...templates.map((t) =>
@@ -469,9 +482,22 @@ export default function FiftyComfyView() {
           )
         ),
       ]),
+    ),
 
-      // ── Shared Templates ──
-      React.createElement("div", { style: sectionHeaderCss }, "Shared"),
+    // ---- Saved Panel (custom user workflows) ----
+    showSaved && React.createElement("div", { style: panelCss },
+      React.createElement("div", {
+        style: { fontSize: 11, color: "#888", marginBottom: 6, display: "flex", justifyContent: "space-between" },
+      },
+        React.createElement("span", null, "Saved Workflows"),
+        React.createElement("span", {
+          style: { cursor: "pointer", color: "#aaa" },
+          onClick: () => setShowSaved(false),
+        }, "\u2715"),
+      ),
+
+      // ── Shared ──
+      React.createElement("div", { style: sectionHeaderCss }, "Shared (all datasets)"),
       sharedTemplates.length === 0
         ? React.createElement("div", {
             style: { fontSize: 11, color: "#555", padding: "4px 8px" },
@@ -496,7 +522,7 @@ export default function FiftyComfyView() {
             )
           ),
 
-      // ── Dataset Templates ──
+      // ── Dataset ──
       React.createElement("div", { style: sectionHeaderCss },
         `This Dataset${_currentDatasetName ? ` (${_currentDatasetName})` : ""}`
       ),
