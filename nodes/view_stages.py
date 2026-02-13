@@ -122,7 +122,7 @@ class MatchLabelsHandler(NodeHandler):
         kwargs = {}
         field = params.get("field", "")
         if field:
-            kwargs["fields"] = field
+            kwargs["fields"] = [field]
         filter_expr = params.get("filter", "")
         if filter_expr:
             kwargs["filter"] = safe_eval(filter_expr)
@@ -135,6 +135,12 @@ class SortBySimilarityHandler(NodeHandler):
     category = "view_stage"
 
     def execute(self, input_view, params, ctx):
+        query = params.get("query", "")
+        if not query:
+            raise ValueError(
+                "Sort By Similarity requires a query "
+                "(sample ID, text string, or embedding)"
+            )
         brain_key = params.get("brain_key", "similarity")
         k = params.get("k")
         if k is not None and k != "" and k != 0:
@@ -143,7 +149,8 @@ class SortBySimilarityHandler(NodeHandler):
             k = None
         reverse = params.get("reverse", False)
         return input_view.sort_by_similarity(
-            brain_key,
+            query,
+            brain_key=brain_key,
             k=k,
             reverse=reverse,
         )

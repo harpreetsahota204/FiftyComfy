@@ -257,7 +257,7 @@ class ComputeNearDuplicatesHandler(NodeHandler):
         kwargs = {}
 
         threshold = params.get("threshold")
-        if threshold is not None and threshold != "" and threshold != 0:
+        if threshold is not None and threshold != "":
             kwargs["thresh"] = float(threshold)
 
         # embeddings: field name string for pre-computed embeddings
@@ -295,7 +295,7 @@ class ComputeLeakySplitsHandler(NodeHandler):
         kwargs = {"splits": splits}
 
         threshold = params.get("threshold")
-        if threshold is not None and threshold != "" and threshold != 0:
+        if threshold is not None and threshold != "":
             kwargs["threshold"] = float(threshold)
 
         fob.compute_leaky_splits(input_view, **kwargs)
