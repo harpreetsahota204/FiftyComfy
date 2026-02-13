@@ -170,6 +170,12 @@ class GetDatasetInfo(foo.Operator):
         )
 
     def execute(self, ctx):
+        from .nodes import (
+            LABEL_FQNS, PATCHES_FQNS, DETECTION_FQNS,
+            CLASSIFICATION_FQNS, SEGMENTATION_FQNS, REGRESSION_FQNS,
+            LABEL_PATH_MAP, get_field_fqn,
+        )
+
         if not ctx.dataset:
             yield ctx.trigger(
                 "@harpreetsahota/FiftyComfy/dataset_info_loaded",
@@ -185,47 +191,6 @@ class GetDatasetInfo(foo.Operator):
             )
             return
 
-        def _get_fqn(field):
-            """Get the fully qualified name of a field's document_type."""
-            doc_type = getattr(field, "document_type", None)
-            if doc_type is None:
-                return None
-            return f"{doc_type.__module__}.{doc_type.__name__}"
-
-        # FQNs that support filter_labels / match_labels
-        _LABEL_FQNS = {
-            "fiftyone.core.labels.Classification",
-            "fiftyone.core.labels.Classifications",
-            "fiftyone.core.labels.Detections",
-            "fiftyone.core.labels.Polylines",
-            "fiftyone.core.labels.Keypoints",
-        }
-        # Subset that supports to_patches()
-        _PATCHES_FQNS = {
-            "fiftyone.core.labels.Detections",
-            "fiftyone.core.labels.Polylines",
-            "fiftyone.core.labels.Keypoints",
-        }
-        # Detection-type fields (for evaluate_detections)
-        _DETECTION_FQNS = {
-            "fiftyone.core.labels.Detections",
-            "fiftyone.core.labels.Polylines",
-            "fiftyone.core.labels.Keypoints",
-        }
-        # Classification-type fields (for evaluate_classifications)
-        _CLASSIFICATION_FQNS = {
-            "fiftyone.core.labels.Classification",
-            "fiftyone.core.labels.Classifications",
-        }
-        # Map FQN -> sub-field path for distinct label queries
-        _LABEL_PATH_MAP = {
-            "fiftyone.core.labels.Detections": "detections.label",
-            "fiftyone.core.labels.Polylines": "polylines.label",
-            "fiftyone.core.labels.Keypoints": "keypoints.label",
-            "fiftyone.core.labels.Classifications": "classifications.label",
-            "fiftyone.core.labels.Classification": "label",
-        }
-
         schema = ctx.dataset.get_field_schema()
         fields = list(schema.keys())
 
@@ -233,27 +198,35 @@ class GetDatasetInfo(foo.Operator):
         patches_fields = []
         detection_fields = []
         classification_fields = []
+        segmentation_fields = []
+        regression_fields = []
         label_classes = {}
 
         for name, field in schema.items():
-            fqn = _get_fqn(field)
+            fqn = get_field_fqn(field)
             if fqn is None:
                 continue
 
-            if fqn in _LABEL_FQNS:
+            if fqn in LABEL_FQNS:
                 label_fields.append(name)
 
-            if fqn in _PATCHES_FQNS:
+            if fqn in PATCHES_FQNS:
                 patches_fields.append(name)
 
-            if fqn in _DETECTION_FQNS:
+            if fqn in DETECTION_FQNS:
                 detection_fields.append(name)
 
-            if fqn in _CLASSIFICATION_FQNS:
+            if fqn in CLASSIFICATION_FQNS:
                 classification_fields.append(name)
 
+            if fqn in SEGMENTATION_FQNS:
+                segmentation_fields.append(name)
+
+            if fqn in REGRESSION_FQNS:
+                regression_fields.append(name)
+
             # Collect distinct class labels
-            sub_path = _LABEL_PATH_MAP.get(fqn)
+            sub_path = LABEL_PATH_MAP.get(fqn)
             if sub_path:
                 try:
                     vals = ctx.dataset.distinct(f"{name}.{sub_path}")
@@ -329,6 +302,8 @@ class GetDatasetInfo(foo.Operator):
                 "tags": tags,
                 "detection_fields": detection_fields,
                 "classification_fields": classification_fields,
+                "segmentation_fields": segmentation_fields,
+                "regression_fields": regression_fields,
                 "label_classes": label_classes,
                 "brain_runs": brain_runs,
                 "evaluations": evaluations,

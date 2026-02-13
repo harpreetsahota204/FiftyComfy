@@ -17,6 +17,8 @@ interface DatasetInfo {
   patches_fields: string[];
   detection_fields: string[];
   classification_fields: string[];
+  segmentation_fields: string[];
+  regression_fields: string[];
   saved_views: string[];
   tags: string[];
   label_classes: Record<string, string[]>;
@@ -32,6 +34,8 @@ let _datasetInfo: DatasetInfo = {
   patches_fields: [],
   detection_fields: [],
   classification_fields: [],
+  segmentation_fields: [],
+  regression_fields: [],
   saved_views: [],
   tags: [],
   label_classes: {},
@@ -116,8 +120,26 @@ function populateNodeCombos(node: any): void {
         ? _datasetInfo.classification_fields
         : ["(no classification fields)"];
     }
-    // Evaluation runs: Manage Evaluation node
-    else if (name === "eval_key" && t.includes("Manage Evaluation")) {
+    // Evaluate Segmentations: show only segmentation-type fields
+    else if (
+      (name === "pred_field" || name === "gt_field") &&
+      t.includes("Evaluate Segmentations")
+    ) {
+      w.options.values = _datasetInfo.segmentation_fields.length > 0
+        ? _datasetInfo.segmentation_fields
+        : ["(no segmentation fields)"];
+    }
+    // Evaluate Regressions: show only regression-type fields
+    else if (
+      (name === "pred_field" || name === "gt_field") &&
+      t.includes("Evaluate Regressions")
+    ) {
+      w.options.values = _datasetInfo.regression_fields.length > 0
+        ? _datasetInfo.regression_fields
+        : ["(no regression fields)"];
+    }
+    // Evaluation runs: Manage Evaluation and To Evaluation Patches
+    else if (name === "eval_key" && (t.includes("Manage Evaluation") || t.includes("To Evaluation Patches"))) {
       w.options.values = _datasetInfo.evaluations.length > 0
         ? _datasetInfo.evaluations
         : ["(no evaluations)"];
@@ -127,6 +149,12 @@ function populateNodeCombos(node: any): void {
       w.options.values = _datasetInfo.brain_runs.length > 0
         ? _datasetInfo.brain_runs
         : ["(no brain runs)"];
+    }
+    // Filter Keypoints: show only label fields (keypoint fields ideally)
+    else if (name === "field" && t.includes("Filter Keypoints")) {
+      w.options.values = _datasetInfo.label_fields.length > 0
+        ? _datasetInfo.label_fields
+        : ["(no label fields)"];
     }
     // General fields: Sort By and any other "field" combo
     else if (name === "field") {
@@ -470,6 +498,186 @@ export function registerAllNodes(): void {
   }
   LiteGraph.registerNodeType("FiftyComfy/View Stages/Map Labels", FO_MapLabels as any);
 
+  class FO_Exists extends LGraphNode {
+    static title = "Exists";
+    static desc = "Filter samples where a field exists (is not None)";
+    constructor() {
+      super();
+      this.title = "Exists";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("toggle", "bool", true, (v: boolean) => { this.properties.bool = v; });
+      this.properties = { field: "", bool: true };
+      this.size = [260, 90];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Exists", FO_Exists as any);
+
+  class FO_SelectFields extends LGraphNode {
+    static title = "Select Fields";
+    static desc = "Select only specified fields (comma-separated)";
+    constructor() {
+      super();
+      this.title = "Select Fields";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
+      this.properties = { fields: "" };
+      this.size = [280, 70];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Select Fields", FO_SelectFields as any);
+
+  class FO_ExcludeFields extends LGraphNode {
+    static title = "Exclude Fields";
+    static desc = "Exclude specified fields (comma-separated)";
+    constructor() {
+      super();
+      this.title = "Exclude Fields";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
+      this.properties = { fields: "" };
+      this.size = [280, 70];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Exclude Fields", FO_ExcludeFields as any);
+
+  class FO_Skip extends LGraphNode {
+    static title = "Skip";
+    static desc = "Omit the first N samples from the view";
+    constructor() {
+      super();
+      this.title = "Skip";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("number", "count", 0, (v: number) => { this.properties.count = v; }, { min: 0, max: 100000, step: 10, precision: 0 });
+      this.properties = { count: 0 };
+      this.size = [220, 70];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Skip", FO_Skip as any);
+
+  class FO_FilterField extends LGraphNode {
+    static title = "Filter Field";
+    static desc = "Filter values of a field by a ViewExpression";
+    constructor() {
+      super();
+      this.title = "Filter Field";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("text", "expression", "F() > 0", (v: string) => { this.properties.expression = v; });
+      this.addWidget("toggle", "only_matches", true, (v: boolean) => { this.properties.only_matches = v; });
+      this.properties = { field: "", expression: "F() > 0", only_matches: true };
+      this.size = [320, 130];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Filter Field", FO_FilterField as any);
+
+  class FO_FilterKeypoints extends LGraphNode {
+    static title = "Filter Keypoints";
+    static desc = "Filter individual keypoint elements by expression";
+    constructor() {
+      super();
+      this.title = "Filter Keypoints";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("text", "filter", "F('confidence') > 0.5", (v: string) => { this.properties.filter = v; });
+      this.addWidget("toggle", "only_matches", true, (v: boolean) => { this.properties.only_matches = v; });
+      this.properties = { field: "", filter: "F('confidence') > 0.5", only_matches: true };
+      this.size = [340, 130];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Filter Keypoints", FO_FilterKeypoints as any);
+
+  class FO_SelectLabels extends LGraphNode {
+    static title = "Select Labels";
+    static desc = "Select labels matching tags or fields";
+    constructor() {
+      super();
+      this.title = "Select Labels";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "tags", "", (v: string) => { this.properties.tags = v; });
+      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
+      this.properties = { tags: "", fields: "" };
+      this.size = [300, 100];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Select Labels", FO_SelectLabels as any);
+
+  class FO_ExcludeLabels extends LGraphNode {
+    static title = "Exclude Labels";
+    static desc = "Exclude labels matching tags or fields";
+    constructor() {
+      super();
+      this.title = "Exclude Labels";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "tags", "", (v: string) => { this.properties.tags = v; });
+      this.addWidget("text", "fields", "", (v: string) => { this.properties.fields = v; });
+      this.properties = { tags: "", fields: "" };
+      this.size = [300, 100];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Exclude Labels", FO_ExcludeLabels as any);
+
+  class FO_SetField extends LGraphNode {
+    static title = "Set Field";
+    static desc = "Set a field value using a ViewExpression";
+    constructor() {
+      super();
+      this.title = "Set Field";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("text", "field", "", (v: string) => { this.properties.field = v; });
+      this.addWidget("text", "expression", "F('confidence') > 0.5", (v: string) => { this.properties.expression = v; });
+      this.properties = { field: "", expression: "F('confidence') > 0.5" };
+      this.size = [340, 100];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Set Field", FO_SetField as any);
+
+  class FO_GroupBy extends LGraphNode {
+    static title = "Group By";
+    static desc = "Group samples by a field value";
+    constructor() {
+      super();
+      this.title = "Group By";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "field", "", (v: string) => { this.properties.field = v; }, { values: [] as string[] });
+      this.addWidget("toggle", "reverse", false, (v: boolean) => { this.properties.reverse = v; });
+      this.addWidget("toggle", "flat", false, (v: boolean) => { this.properties.flat = v; });
+      this.properties = { field: "", reverse: false, flat: false };
+      this.size = [280, 120];
+      this.color = "#5AA5F1";
+      this.bgcolor = "#365F8E";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/View Stages/Group By", FO_GroupBy as any);
+
   // ─── Brain ────────────────────────────────────────────────────
 
   class FO_ComputeEmbeddings extends LGraphNode {
@@ -795,6 +1003,63 @@ export function registerAllNodes(): void {
     }
   }
   LiteGraph.registerNodeType("FiftyComfy/Evaluation/Manage Evaluation", FO_ManageEvaluation as any);
+
+  class FO_EvaluateSegmentations extends LGraphNode {
+    static title = "Evaluate Segmentations";
+    static desc = "Evaluate semantic segmentation masks against ground truth";
+    constructor() {
+      super();
+      this.title = "Evaluate Segmentations";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
+      this.addWidget("combo", "gt_field", "", (v: string) => { this.properties.gt_field = v; }, { values: [] as string[] });
+      this.addWidget("text", "eval_key", "eval", (v: string) => { this.properties.eval_key = v; });
+      this.addWidget("combo", "method", "simple", (v: string) => { this.properties.method = v; }, { values: ["simple"] });
+      this.properties = { pred_field: "", gt_field: "", eval_key: "eval", method: "simple" };
+      this.size = [340, 150];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/Evaluate Segmentations", FO_EvaluateSegmentations as any);
+
+  class FO_EvaluateRegressions extends LGraphNode {
+    static title = "Evaluate Regressions";
+    static desc = "Evaluate regression predictions against ground truth";
+    constructor() {
+      super();
+      this.title = "Evaluate Regressions";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "pred_field", "", (v: string) => { this.properties.pred_field = v; }, { values: [] as string[] });
+      this.addWidget("combo", "gt_field", "", (v: string) => { this.properties.gt_field = v; }, { values: [] as string[] });
+      this.addWidget("text", "eval_key", "eval", (v: string) => { this.properties.eval_key = v; });
+      this.addWidget("combo", "method", "simple", (v: string) => { this.properties.method = v; }, { values: ["simple"] });
+      this.properties = { pred_field: "", gt_field: "", eval_key: "eval", method: "simple" };
+      this.size = [340, 150];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/Evaluate Regressions", FO_EvaluateRegressions as any);
+
+  class FO_ToEvaluationPatches extends LGraphNode {
+    static title = "To Evaluation Patches";
+    static desc = "Convert to TP/FP/FN patches from an evaluation run";
+    constructor() {
+      super();
+      this.title = "To Evaluation Patches";
+      this.addInput("view", "FO_VIEW");
+      this.addOutput("view", "FO_VIEW");
+      this.addWidget("combo", "eval_key", "", (v: string) => { this.properties.eval_key = v; }, { values: [] as string[] });
+      this.properties = { eval_key: "" };
+      this.size = [320, 70];
+      this.color = "#6AAF6C";
+      this.bgcolor = "#3F6840";
+    }
+  }
+  LiteGraph.registerNodeType("FiftyComfy/Evaluation/To Evaluation Patches", FO_ToEvaluationPatches as any);
 
   // ─── Output ───────────────────────────────────────────────────
 

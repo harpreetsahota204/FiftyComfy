@@ -323,6 +323,19 @@ class ManageBrainRunHandler(NodeHandler):
         if not brain_key:
             raise ValueError("No brain run selected")
 
+        # Guard: verify brain_key exists on the dataset
+        try:
+            brain_runs = ctx.dataset.list_brain_runs()
+            if brain_key not in brain_runs:
+                raise ValueError(
+                    f"Brain run '{brain_key}' not found on this dataset. "
+                    f"Available brain runs: {brain_runs or '(none)'}"
+                )
+        except ValueError:
+            raise
+        except Exception:
+            pass
+
         if action == "delete":
             ctx.dataset.delete_brain_run(brain_key)
             logger.info(f"[FiftyComfy] Deleted brain run: {brain_key}")

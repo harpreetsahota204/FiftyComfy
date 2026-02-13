@@ -77,6 +77,7 @@ class GraphExecutor:
         failed_nodes = set()
         total = len(execution_order)
         final_view = None  # Track the last view for Set App View
+        set_view_count = 0  # Track multiple Set App View nodes
 
         for idx, node_id in enumerate(execution_order):
             node = nodes[node_id]
@@ -110,12 +111,21 @@ class GraphExecutor:
                 if handler is None:
                     raise ValueError(f"No handler for: {node_type}")
 
+                # Guard: non-source nodes must have an input view
+                if input_view is None and handler.category != "source":
+                    raise ValueError(
+                        f"No input connected — connect a Source node "
+                        f"upstream of '{node_title}'"
+                    )
+
                 _validate_properties(properties, node_title)
                 output = handler.execute(input_view, properties, ctx)
                 results[node_id] = output
 
                 # If this is a "Set App View" node, remember the view
                 if node_type == "FiftyComfy/Output/Set App View" and output is not None:
+                    if final_view is not None:
+                        set_view_count += 1
                     final_view = output
 
                 logger.info(f"Node {node_id} ({node_type}) complete")
@@ -134,6 +144,14 @@ class GraphExecutor:
         # ----- Apply the view to the App (this is the critical step!) -----
         if final_view is not None:
             yield ctx.ops.set_view(view=final_view)
+
+        # Warn if multiple Set App View nodes were used
+        if set_view_count > 0:
+            yield ctx.ops.notify(
+                f"Multiple 'Set App View' nodes detected — only the "
+                f"last one in execution order was applied.",
+                variant="warning",
+            )
 
         # Summary notification
         completed = total - len(failed_nodes)

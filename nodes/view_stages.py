@@ -1,7 +1,7 @@
 """View-stage node handlers — filter, sort, and transform FiftyOne views."""
 
 import fiftyone as fo
-from . import NodeHandler
+from . import NodeHandler, PATCHES_FQNS, KEYPOINT_FQNS, require_field_type
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,19 @@ class SortBySimilarityHandler(NodeHandler):
                 "Sort By Similarity requires a query "
                 "(sample ID, text string, or embedding)"
             )
+
         brain_key = params.get("brain_key", "similarity")
+
+        # Guard: verify dataset has brain runs
+        try:
+            brain_runs = ctx.dataset.list_brain_runs()
+            if not brain_runs:
+                raise ValueError(
+                    "Sort By Similarity requires a similarity index. "
+                    "Run a 'Compute Similarity' brain method first."
+                )
+        except Exception:
+            pass  # let FiftyOne raise its own error if list_brain_runs fails
         k = params.get("k")
         if k is not None and k != "" and k != 0:
             k = int(k)
@@ -164,6 +176,15 @@ class ToPatchesHandler(NodeHandler):
         field = params.get("field", "")
         if not field:
             raise ValueError("No label field specified for To Patches")
+
+        # Guard: cannot convert patches view to patches again
+        if hasattr(input_view, "_patches_field"):
+            raise ValueError(
+                "Cannot convert to patches — the view is already a "
+                "patches view"
+            )
+
+        require_field_type(ctx, field, PATCHES_FQNS, "To Patches")
         return input_view.to_patches(field)
 
 
@@ -193,6 +214,155 @@ class MapLabelsHandler(NodeHandler):
         return input_view.map_labels(field, label_map)
 
 
+class ExistsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Exists"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No field specified for Exists")
+        bool_val = params.get("bool", True)
+        return input_view.exists(field, bool=bool_val)
+
+
+class SelectFieldsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Select Fields"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        fields_str = params.get("fields", "")
+        if not fields_str:
+            return input_view.select_fields()
+        fields = [f.strip() for f in fields_str.split(",") if f.strip()]
+        return input_view.select_fields(fields)
+
+
+class ExcludeFieldsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Exclude Fields"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        fields_str = params.get("fields", "")
+        if not fields_str:
+            raise ValueError("No fields specified for Exclude Fields")
+        fields = [f.strip() for f in fields_str.split(",") if f.strip()]
+        return input_view.exclude_fields(fields)
+
+
+class SkipHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Skip"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        count = int(params.get("count", 0))
+        return input_view.skip(count)
+
+
+class FilterFieldHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Filter Field"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No field specified for Filter Field")
+        expr = safe_eval(params.get("expression", ""))
+        only_matches = params.get("only_matches", True)
+        return input_view.filter_field(field, expr, only_matches=only_matches)
+
+
+class FilterKeypointsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Filter Keypoints"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No field specified for Filter Keypoints")
+
+        require_field_type(ctx, field, KEYPOINT_FQNS, "Filter Keypoints")
+
+        kwargs = {}
+        filter_expr = params.get("filter", "")
+        if filter_expr:
+            kwargs["filter"] = safe_eval(filter_expr)
+        kwargs["only_matches"] = params.get("only_matches", True)
+
+        return input_view.filter_keypoints(field, **kwargs)
+
+
+class SelectLabelsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Select Labels"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        kwargs = {}
+        tags = params.get("tags", "")
+        if tags:
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            kwargs["tags"] = tags
+        fields = params.get("fields", "")
+        if fields:
+            if isinstance(fields, str):
+                fields = [f.strip() for f in fields.split(",") if f.strip()]
+            kwargs["fields"] = fields
+        if not kwargs:
+            raise ValueError(
+                "Select Labels requires at least tags or fields"
+            )
+        return input_view.select_labels(**kwargs)
+
+
+class ExcludeLabelsHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Exclude Labels"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        kwargs = {}
+        tags = params.get("tags", "")
+        if tags:
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            kwargs["tags"] = tags
+        fields = params.get("fields", "")
+        if fields:
+            if isinstance(fields, str):
+                fields = [f.strip() for f in fields.split(",") if f.strip()]
+            kwargs["fields"] = fields
+        if not kwargs:
+            raise ValueError(
+                "Exclude Labels requires at least tags or fields"
+            )
+        return input_view.exclude_labels(**kwargs)
+
+
+class SetFieldHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Set Field"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No field specified for Set Field")
+        expr = safe_eval(params.get("expression", ""))
+        return input_view.set_field(field, expr)
+
+
+class GroupByHandler(NodeHandler):
+    node_type = "FiftyComfy/View Stages/Group By"
+    category = "view_stage"
+
+    def execute(self, input_view, params, ctx):
+        field = params.get("field", "")
+        if not field:
+            raise ValueError("No field specified for Group By")
+        reverse = params.get("reverse", False)
+        flat = params.get("flat", False)
+        return input_view.group_by(field, reverse=reverse, flat=flat)
+
+
 # All handlers in this module
 HANDLERS = [
     MatchHandler(),
@@ -206,4 +376,14 @@ HANDLERS = [
     ShuffleHandler(),
     ToPatchesHandler(),
     MapLabelsHandler(),
+    ExistsHandler(),
+    SelectFieldsHandler(),
+    ExcludeFieldsHandler(),
+    SkipHandler(),
+    FilterFieldHandler(),
+    FilterKeypointsHandler(),
+    SelectLabelsHandler(),
+    ExcludeLabelsHandler(),
+    SetFieldHandler(),
+    GroupByHandler(),
 ]
