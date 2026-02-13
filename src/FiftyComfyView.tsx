@@ -229,16 +229,17 @@ export default function FiftyComfyView() {
     // Fetch dataset info (once per session, not per mount)
     fetchDatasetInfo();
 
-    // Resize canvas to fill the container
+    // Resize canvas to fill the container.
+    // IMPORTANT: let _lgCanvas.resize() set canvas dimensions so LiteGraph
+    // updates its internal viewport. Then patch bgcanvas as a safety net.
     const doResize = () => {
-      if (!container || !el || !_lgCanvas) return;
+      if (!container || !_lgCanvas) return;
       const w = container.offsetWidth || container.clientWidth;
       const h = container.offsetHeight || container.clientHeight;
       if (w === 0 || h === 0) return;
-      el.width = w;
-      el.height = h;
+      (_lgCanvas as any).resize(w, h);
       const bg = (_lgCanvas as any).bgcanvas;
-      if (bg) {
+      if (bg && (bg.width !== w || bg.height !== h)) {
         bg.width = w;
         bg.height = h;
       }
