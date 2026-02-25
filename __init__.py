@@ -268,7 +268,7 @@ class GetDatasetInfo(foo.Operator):
         from .nodes import (
             LABEL_FQNS, PATCHES_FQNS, DETECTION_FQNS,
             CLASSIFICATION_FQNS, SEGMENTATION_FQNS, REGRESSION_FQNS,
-            LABEL_PATH_MAP, get_field_fqn,
+            VECTOR_FQNS, LABEL_PATH_MAP, get_field_fqn, get_field_type_fqn,
         )
 
         if not ctx.dataset:
@@ -279,6 +279,7 @@ class GetDatasetInfo(foo.Operator):
                     "fields": [],
                     "label_fields": [],
                     "patches_fields": [],
+                    "vector_fields": [],
                     "saved_views": [],
                     "tags": [],
                     "label_classes": {},
@@ -295,9 +296,14 @@ class GetDatasetInfo(foo.Operator):
         classification_fields = []
         segmentation_fields = []
         regression_fields = []
+        vector_fields = []
         label_classes = {}
 
         for name, field in schema.items():
+            # Check field class FQN for non-embedded types (e.g. VectorField)
+            if get_field_type_fqn(field) in VECTOR_FQNS:
+                vector_fields.append(name)
+
             fqn = get_field_fqn(field)
             if fqn is None:
                 continue
@@ -393,6 +399,7 @@ class GetDatasetInfo(foo.Operator):
                 "fields": fields,
                 "label_fields": label_fields,
                 "patches_fields": patches_fields,
+                "vector_fields": vector_fields,
                 "saved_views": saved_views,
                 "tags": tags,
                 "detection_fields": detection_fields,

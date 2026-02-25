@@ -58,6 +58,11 @@ REGRESSION_FQNS = {
     "fiftyone.core.labels.Regression",
 }
 
+# Vector/embedding fields (for brain nodes that accept pre-computed embeddings)
+VECTOR_FQNS = {
+    "fiftyone.core.fields.VectorField",
+}
+
 # Map FQN -> sub-field path for distinct label queries
 LABEL_PATH_MAP = {
     "fiftyone.core.labels.Detections": "detections.label",
@@ -74,6 +79,15 @@ def get_field_fqn(field):
     if doc_type is None:
         return None
     return f"{doc_type.__module__}.{doc_type.__name__}"
+
+
+def get_field_type_fqn(field):
+    """Get the FQN of the field class itself.
+
+    Used for non-embedded field types (e.g. VectorField) that don't have a
+    document_type attribute and therefore return None from get_field_fqn().
+    """
+    return f"{type(field).__module__}.{type(field).__name__}"
 
 
 def require_field_type(ctx, field_name, allowed_fqns, node_title):

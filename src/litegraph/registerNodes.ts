@@ -19,6 +19,7 @@ interface DatasetInfo {
   classification_fields: string[];
   segmentation_fields: string[];
   regression_fields: string[];
+  vector_fields: string[];
   saved_views: string[];
   tags: string[];
   label_classes: Record<string, string[]>;
@@ -36,6 +37,7 @@ let _datasetInfo: DatasetInfo = {
   classification_fields: [],
   segmentation_fields: [],
   regression_fields: [],
+  vector_fields: [],
   saved_views: [],
   tags: [],
   label_classes: {},
@@ -96,6 +98,12 @@ function populateNodeCombos(node: any): void {
       w.options.values = _datasetInfo.label_fields.length > 0
         ? _datasetInfo.label_fields
         : ["(no label fields)"];
+    }
+    // Brain nodes accepting pre-computed embeddings field (VectorField)
+    else if (name === "embeddings" && t.includes("Brain/")) {
+      w.options.values = _datasetInfo.vector_fields.length > 0
+        ? _datasetInfo.vector_fields
+        : ["(no embedding fields)"];
     }
     // Zoo model dropdown: Apply Zoo Model node
     else if (name === "model" && t.includes("Model/")) {
@@ -871,8 +879,8 @@ export function registerAllNodes(): void {
       this.addWidget("text", "brain_key", "visualization", (v: string) => { this.properties.brain_key = v; });
       this.addWidget("combo", "method", "umap", (v: string) => { this.properties.method = v; }, { values: ["umap", "tsne", "pca"] });
       this.addWidget("combo", "num_dims", "2", (v: string) => { this.properties.num_dims = parseInt(v); }, { values: ["2", "3"] });
-      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "embeddings" };
+      this.addWidget("combo", "embeddings", "", (v: string) => { this.properties.embeddings = v; }, { values: [] as string[] });
+      this.properties = { brain_key: "visualization", method: "umap", num_dims: 2, embeddings: "" };
       this.size = [340, 150];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
@@ -890,8 +898,8 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "brain_key", "similarity", (v: string) => { this.properties.brain_key = v; });
       this.addWidget("combo", "backend", "sklearn", (v: string) => { this.properties.backend = v; }, { values: ["sklearn", "qdrant", "pinecone", "milvus", "lancedb"] });
-      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { brain_key: "similarity", backend: "sklearn", embeddings: "embeddings" };
+      this.addWidget("combo", "embeddings", "", (v: string) => { this.properties.embeddings = v; }, { values: [] as string[] });
+      this.properties = { brain_key: "similarity", backend: "sklearn", embeddings: "" };
       this.size = [340, 130];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
@@ -908,8 +916,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "uniqueness_field", "uniqueness", (v: string) => { this.properties.uniqueness_field = v; });
-      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { uniqueness_field: "uniqueness", embeddings: "embeddings" };
+      this.addWidget("combo", "embeddings", "", (v: string) => { this.properties.embeddings = v; }, { values: [] as string[] });
+      this.properties = { uniqueness_field: "uniqueness", embeddings: "" };
       this.size = [320, 100];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
@@ -942,8 +950,8 @@ export function registerAllNodes(): void {
       this.addInput("view", "FO_VIEW");
       this.addOutput("view", "FO_VIEW");
       this.addWidget("number", "threshold", 0.1, (v: number) => { this.properties.threshold = v; }, { min: 0.001, max: 1.0, step: 0.01, precision: 3 });
-      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { threshold: 0.1, embeddings: "embeddings" };
+      this.addWidget("combo", "embeddings", "", (v: string) => { this.properties.embeddings = v; }, { values: [] as string[] });
+      this.properties = { threshold: 0.1, embeddings: "" };
       this.size = [320, 100];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
@@ -961,8 +969,8 @@ export function registerAllNodes(): void {
       this.addOutput("view", "FO_VIEW");
       this.addWidget("text", "representativeness_field", "representativeness", (v: string) => { this.properties.representativeness_field = v; });
       this.addWidget("combo", "method", "cluster-center", (v: string) => { this.properties.method = v; }, { values: ["cluster-center", "cluster-center-downweight"] });
-      this.addWidget("text", "embeddings", "embeddings", (v: string) => { this.properties.embeddings = v; });
-      this.properties = { representativeness_field: "representativeness", method: "cluster-center", embeddings: "embeddings" };
+      this.addWidget("combo", "embeddings", "", (v: string) => { this.properties.embeddings = v; }, { values: [] as string[] });
+      this.properties = { representativeness_field: "representativeness", method: "cluster-center", embeddings: "" };
       this.size = [360, 130];
       this.color = "#BC8CFF";
       this.bgcolor = "#6E5299";
