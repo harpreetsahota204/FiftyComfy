@@ -11,7 +11,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { executeOperator } from "@fiftyone/operators";
 import { LGraph, LGraphCanvas, LiteGraph } from "@comfyorg/litegraph";
 import litegraphCss from "@comfyorg/litegraph/style.css?inline";
-import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded, installSearchFilter } from "./litegraph/registerNodes";
+import { registerAllNodes, setDatasetInfo, updateAllComboWidgets, hookNodeAdded, installSearchFilter, compactLinearLayout } from "./litegraph/registerNodes";
 import { onEvent } from "./operators";
 import { BUILTIN_TEMPLATES, BuiltinTemplate } from "./templates";
 
@@ -197,6 +197,14 @@ export default function FiftyComfyView() {
     if (!_graph) {
       _graph = new LGraph();
       hookNodeAdded(_graph);
+
+      // Auto-compact linear graphs when a node is deleted
+      const prevRemoved = (_graph as any).onNodeRemoved;
+      (_graph as any).onNodeRemoved = function (node: any) {
+        if (prevRemoved) prevRemoved.call(this, node);
+        // Defer until after LiteGraph finishes its own removal bookkeeping
+        setTimeout(() => { if (_graph) compactLinearLayout(_graph); }, 0);
+      };
     }
 
     if (_lgCanvas) {

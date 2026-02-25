@@ -321,6 +321,48 @@ export function hookNodeAdded(graph: LGraph): void {
   };
 }
 
+/**
+ * Compact a linear graph by closing the gap left by a deleted node.
+ *
+ * Sorts all remaining nodes by their current X position, then
+ * re-assigns X coordinates using the same spacing formula as
+ * buildLinearGraph (X_START=50, X_GAP=60). Y positions are
+ * preserved so any vertical layout choices are kept.
+ *
+ * The reflow is skipped silently for non-linear graphs — i.e. any
+ * graph where at least one node has more than one outgoing link
+ * (branching), so power users who build fan-out pipelines are
+ * unaffected.
+ */
+export function compactLinearLayout(graph: LGraph): void {
+  const nodes: any[] = (graph as any)._nodes;
+  if (!nodes || nodes.length < 2) return;
+
+  // Guard: skip branching / non-linear graphs
+  for (const node of nodes) {
+    if (!node.outputs) continue;
+    for (const out of node.outputs) {
+      if (out.links && out.links.length > 1) return;
+    }
+  }
+
+  // Sort left-to-right by current X position
+  const sorted = [...nodes].sort(
+    (a: any, b: any) => (a.pos?.[0] ?? 0) - (b.pos?.[0] ?? 0)
+  );
+
+  const X_START = 50;
+  const X_GAP = 60;
+  let xPos = X_START;
+
+  for (const node of sorted) {
+    node.pos[0] = xPos;
+    xPos += (node.size?.[0] ?? 200) + X_GAP;
+  }
+
+  (graph as any).setDirtyCanvas(true, true);
+}
+
 
 export function registerAllNodes(): void {
   if (registered) return;
