@@ -1,5 +1,7 @@
 # FiftyComfy
 
+![img](fiftycomfy.gif)
+
 A visual, node-based workflow editor for [FiftyOne](https://docs.voxel51.com) -- powered by [LiteGraph.js](https://github.com/comfyorg/litegraph.js) (the same engine behind ComfyUI). Build dataset curation, analysis, and model evaluation pipelines by connecting nodes on a canvas, without writing code.
 
 ## Installation
